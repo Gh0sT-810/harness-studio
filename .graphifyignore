@@ -1,0 +1,20 @@
+# Third-party dependencies
+frontend/node_modules/
+
+# Build artifacts
+frontend/dist/
+api/tmp/
+
+# Tool output
+graphify-out/
+
+# Local environment and IDE files
+.env
+.DS_Store
+.vscode/
+.idea/
+**/.specstory/
+
+# Generated logs and coverage
+*.log
+api/coverage.out
