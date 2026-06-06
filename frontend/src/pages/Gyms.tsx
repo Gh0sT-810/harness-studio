@@ -10,6 +10,7 @@ import { Gym, gymApi } from '@/lib/api'
 export function Gyms() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Gym | null>(null)
   const [name, setName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -39,6 +40,7 @@ export function Gyms() {
 
   function resetForm() {
     setEditing(null)
+    setShowForm(false)
     setName('')
     setBaseUrl('')
     setDescription('')
@@ -47,6 +49,7 @@ export function Gyms() {
 
   function editGym(gym: Gym) {
     setEditing(gym)
+    setShowForm(true)
     setName(gym.name)
     setBaseUrl(gym.baseUrl)
     setDescription(gym.description ?? '')
@@ -66,30 +69,47 @@ export function Gyms() {
           <h2 className="harness-title">Gyms</h2>
           <p className="harness-subtitle">Manage simulated app environments and verification strategy.</p>
         </div>
-        <input data-id="gyms-search" className="harness-input" placeholder="Search gyms" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+          <input data-id="gyms-search" className="harness-input" placeholder="Search gyms" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Button
+            data-id="add-gym-button"
+            type="button"
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+          >
+            Add Gym
+          </Button>
+        </div>
       </section>
 
-      <Card data-id="gym-form-card" className="p-6">
-        <CardHeader>
-          <CardTitle>{editing ? 'Edit gym' : 'Create gym'}</CardTitle>
-          <CardDescription>Verification strategy and similarity metadata are stored in the catalog schema.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form data-id="gym-form" className="grid gap-3 md:grid-cols-4" onSubmit={handleSubmit}>
-            <input data-id="gym-name-input" className="harness-input" placeholder="Name" value={name} onChange={(event) => setName(event.target.value)} required />
-            <input data-id="gym-base-url-input" className="harness-input" placeholder="Base URL" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required />
-            <select data-id="gym-strategy-select" className="harness-input" value={strategy} onChange={(event) => setStrategy(event.target.value)}>
-              <option value="verification_endpoint">verification_endpoint</option>
-              <option value="local_storage_assertions">local_storage_assertions</option>
-              <option value="grader_config">grader_config</option>
-              <option value="verifier_api_script">verifier_api_script</option>
-              <option value="db_json_validator">db_json_validator</option>
-            </select>
-            <Button data-id="gym-submit" type="submit">{editing ? 'Save gym' : 'Create gym'}</Button>
-            <textarea data-id="gym-description-input" className="harness-textarea min-h-20 md:col-span-4" placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
-          </form>
-        </CardContent>
-      </Card>
+      {showForm ? (
+        <Card data-id="gym-form-card" className="p-6">
+          <CardHeader>
+            <CardTitle>{editing ? 'Edit gym' : 'Create gym'}</CardTitle>
+            <CardDescription>Verification strategy and similarity metadata are stored in the catalog schema.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form data-id="gym-form" className="grid gap-3 md:grid-cols-4" onSubmit={handleSubmit}>
+              <input data-id="gym-name-input" className="harness-input" placeholder="Name" value={name} onChange={(event) => setName(event.target.value)} required />
+              <input data-id="gym-base-url-input" className="harness-input" placeholder="Base URL" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required />
+              <select data-id="gym-strategy-select" className="harness-input" value={strategy} onChange={(event) => setStrategy(event.target.value)}>
+                <option value="verification_endpoint">verification_endpoint</option>
+                <option value="local_storage_assertions">local_storage_assertions</option>
+                <option value="grader_config">grader_config</option>
+                <option value="verifier_api_script">verifier_api_script</option>
+                <option value="db_json_validator">db_json_validator</option>
+              </select>
+              <div className="flex gap-2">
+                <Button data-id="gym-submit" type="submit">{editing ? 'Save gym' : 'Create gym'}</Button>
+                <Button data-id="gym-form-cancel" type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
+              </div>
+              <textarea data-id="gym-description-input" className="harness-textarea min-h-20 md:col-span-4" placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {filtered.length === 0 ? <EmptyState id="gyms-empty" message="No gyms found." /> : null}
       <section data-id="gyms-grid" className="harness-dashboard-grid">

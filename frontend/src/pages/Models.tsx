@@ -5,18 +5,24 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { modelApi } from '@/lib/api'
 
-export function Models() {
+type ModelsProps = {
+  embedded?: boolean
+}
+
+export function Models({ embedded = false }: ModelsProps) {
   const modelsQuery = useQuery({ queryKey: ['models'], queryFn: modelApi.list })
   const providersQuery = useQuery({ queryKey: ['model-providers'], queryFn: modelApi.listProviders })
   const models = modelsQuery.data ?? []
   const providers = providersQuery.data ?? []
 
   return (
-    <div data-id="models-page" className="harness-page">
-      <section>
-        <h2 className="harness-title">Model Registry</h2>
-        <p className="harness-subtitle">Real provider and model definitions from the catalog schema.</p>
-      </section>
+    <div data-id="models-page" className={embedded ? 'grid gap-6' : 'harness-page'}>
+      {embedded ? null : (
+        <section>
+          <h2 className="harness-title">Model Registry</h2>
+          <p className="harness-subtitle">Real provider and model definitions from the catalog schema.</p>
+        </section>
+      )}
       <section data-id="providers-list" className="grid gap-3 md:grid-cols-2">
         {providers.map((provider) => (
           <Card data-id={`provider-card-${provider.id}`} className="p-6" key={provider.id}>

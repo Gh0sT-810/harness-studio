@@ -2,7 +2,7 @@ package models
 
 type Config struct {
 	ServerAddress          string
-	CORSOrigin             string
+	CORSOrigins            []string
 	DBConnectionString     string
 	RedisAddress           string
 	JWTSecret              string

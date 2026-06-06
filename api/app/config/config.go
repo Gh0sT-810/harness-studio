@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
 	"github.com/joho/godotenv"
@@ -14,7 +15,7 @@ func LoadConfig() (*models.Config, error) {
 
 	return &models.Config{
 		ServerAddress:          ":" + env("PORT", "8080"),
-		CORSOrigin:             env("CORS_ORIGIN", "http://localhost:3000"),
+		CORSOrigins:            splitCSV(env("CORS_ORIGIN", "http://localhost:3000,http://localhost:3001")),
 		DBConnectionString:     env("DATABASE_URL", defaultDatabaseURL()),
 		RedisAddress:           fmt.Sprintf("%s:%s", env("REDIS_HOST", "localhost"), env("REDIS_PORT", "6379")),
 		JWTSecret:              env("JWT_SECRET", "local-dev-secret-change-me"),
@@ -37,6 +38,18 @@ func env(key, fallback string) string {
 	}
 
 	return value
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func envInt(key string, fallback int) int {

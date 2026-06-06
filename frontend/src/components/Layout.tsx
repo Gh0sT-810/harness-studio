@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Boxes, Database, LogOut, Menu, Moon, Shield, Sun, Workflow } from 'lucide-react'
+import { ArrowLeft, Boxes, LogOut, Menu, Moon, Shield, Sun, Workflow } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/contexts/AuthContext'
@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { path: '/gyms', label: 'Gyms', id: 'nav-gyms', icon: Boxes },
   { path: '/tasks', label: 'Tasks', id: 'nav-tasks', icon: Workflow },
-  { path: '/models', label: 'Models', id: 'nav-models', icon: Database },
   { path: '/batches', label: 'Batches', id: 'nav-batches', icon: Workflow },
   { path: '/admin', label: 'Admin', id: 'nav-admin', admin: true, icon: Shield },
 ]
@@ -18,6 +17,9 @@ export function Layout() {
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const { isAdmin, logout, user } = useAuth()
+  const userName = user?.displayName || user?.email?.split('@')[0] || 'User'
+  const userEmail = user?.email || ''
+  const userInitial = userName.charAt(0).toUpperCase()
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -76,7 +78,7 @@ export function Layout() {
                   title={item.label}
                   className={({ isActive }) =>
                     cn(
-                      'relative flex h-11 items-center rounded-sm transition-all duration-200',
+                      'group relative flex h-11 items-center rounded-sm transition-all duration-200',
                       isActive ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : 'text-[var(--ink)] hover:bg-[var(--surface)]',
                     )
                   }
@@ -87,6 +89,11 @@ export function Layout() {
                   <span className={cn('overflow-hidden whitespace-nowrap text-sm transition-all duration-300', sidebarExpanded ? 'w-40 opacity-100' : 'w-0 opacity-0')}>
                     {item.label}
                   </span>
+                  {!sidebarExpanded ? (
+                    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--hairline-soft)] bg-[var(--ink)] px-2.5 py-1.5 text-xs font-medium text-[var(--canvas)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                      {item.label}
+                    </span>
+                  ) : null}
                 </NavLink>
               )
             })}
@@ -95,7 +102,7 @@ export function Layout() {
           <div data-id="sidebar-footer" className="flex flex-col gap-1 border-t border-[var(--hairline-soft)] p-2">
             <button
               data-id="theme-toggle"
-              className="flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
+              className="group relative flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
               onClick={toggleTheme}
               title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
             >
@@ -105,11 +112,16 @@ export function Layout() {
               <span data-id="theme-label" className={cn('overflow-hidden whitespace-nowrap text-sm transition-all duration-300', sidebarExpanded ? 'w-40 opacity-100' : 'w-0 opacity-0')}>
                 {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
               </span>
+              {!sidebarExpanded ? (
+                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--hairline-soft)] bg-[var(--ink)] px-2.5 py-1.5 text-xs font-medium text-[var(--canvas)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                </span>
+              ) : null}
             </button>
 
             <button
               data-id="logout-button"
-              className="flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
+              className="group relative flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
               onClick={handleLogout}
               title="Logout"
             >
@@ -119,13 +131,34 @@ export function Layout() {
               <span className={cn('overflow-hidden whitespace-nowrap text-sm transition-all duration-300', sidebarExpanded ? 'w-40 opacity-100' : 'w-0 opacity-0')}>
                 Logout
               </span>
+              {!sidebarExpanded ? (
+                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--hairline-soft)] bg-[var(--ink)] px-2.5 py-1.5 text-xs font-medium text-[var(--canvas)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  Logout
+                </span>
+              ) : null}
             </button>
 
-            {sidebarExpanded ? (
-              <p data-id="header-current-user" className="truncate px-3 py-2 text-xs text-[var(--steel)]">
-                {user?.email}
-              </p>
-            ) : null}
+            <div
+              data-id="header-current-user"
+              className={cn(
+                'group relative mt-1 flex items-center rounded-lg border border-[var(--hairline-soft)] bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] transition-colors hover:bg-[var(--surface)]',
+                sidebarExpanded ? 'gap-3 p-3' : 'h-11 justify-center p-1',
+              )}
+            >
+              <div className={cn('flex flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] font-semibold text-[var(--on-primary)] shadow-sm', sidebarExpanded ? 'h-9 w-9 text-sm' : 'h-8 w-8 text-xs')}>
+                {userInitial}
+              </div>
+              {sidebarExpanded ? (
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-5 text-[var(--ink)]">{userName}</p>
+                  <p className="truncate text-xs leading-4 text-[var(--steel)]">{userEmail}</p>
+                </div>
+              ) : (
+                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--hairline-soft)] bg-[var(--ink)] px-2.5 py-1.5 text-xs font-medium text-[var(--canvas)] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                  {userName}
+                </span>
+              )}
+            </div>
           </div>
         </aside>
 

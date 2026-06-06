@@ -52,7 +52,7 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{cfg.CORSOrigin},
+		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},

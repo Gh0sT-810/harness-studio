@@ -14,6 +14,11 @@ test.describe('Batch Snapshot', () => {
 
     await page.goto('/batches')
     await expect(batchPage.batchesPage).toBeVisible()
+    await expect(batchPage.addBatchButton).toBeVisible()
+    await expect(batchPage.batchesSearch).toBeVisible()
+    await expect(batchPage.batchFormCard).not.toBeVisible()
+    await batchPage.addBatchButton.click()
+    await expect(batchPage.batchFormCard).toBeVisible()
     await expect(batchPage.batchCard(mockBatch.id)).toBeVisible()
 
     await page.goto('/batches/b1/runs')
