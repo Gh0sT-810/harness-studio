@@ -1,0 +1,141 @@
+openapi: 3.1.0
+info:
+  title: Harness Studio API
+  version: 0.2.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: API health with PostgreSQL and Redis readiness
+      responses:
+        "200":
+          description: Healthy
+  /api/auth/login:
+    post:
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Access and refresh tokens
+  /api/auth/refresh:
+    post:
+      summary: Rotate a refresh token
+      responses:
+        "200":
+          description: New token pair
+  /api/me:
+    get:
+      summary: Current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+  /api/gyms:
+    get:
+      summary: List gyms
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Gym list
+    post:
+      summary: Create gym
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Created gym
+  /api/tasks:
+    get:
+      summary: List tasks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Task list
+    post:
+      summary: Create task
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Created task
+  /api/models:
+    get:
+      summary: List model definitions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Model definition list
+  /api/model-providers:
+    get:
+      summary: List model providers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Model provider list
+  /api/batches:
+    get:
+      summary: List batches
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Batch list
+    post:
+      summary: Create metadata-only batch with execution snapshots and pending iterations
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Created batch
+  /api/batches/{id}/snapshot:
+    get:
+      summary: Consolidated batch snapshot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Batch, executions, iterations, counts, catalog metadata, and report placeholder
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    Envelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        statusCode:
+          type: integer
+        data: {}

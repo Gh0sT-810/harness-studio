@@ -41,6 +41,12 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://harness:harness_dev_password@postgres:5432/harness?sslmode=disable}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-me}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-60}
+      REFRESH_TOKEN_TTL_HOURS: ${REFRESH_TOKEN_TTL_HOURS:-720}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-test@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-Test@$1234}
+      DISABLE_AUTH: ${DISABLE_AUTH:-false}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:

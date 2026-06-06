@@ -1,6 +1,6 @@
 # Harness Studio
 
-Phase 1 establishes the self-hosted harness foundation:
+Phase 2 establishes the self-hosted harness foundation and core metadata model:
 
 - React + TypeScript frontend shell
 - Go public/control API with `GET /health`
@@ -8,6 +8,7 @@ Phase 1 establishes the self-hosted harness foundation:
 - Redis for broker/events readiness
 - One app-level Docker Compose stack
 - Server-level Caddy/Nginx examples outside the app compose
+- Auth/RBAC bootstrap, catalog metadata, batch metadata, execution snapshots, and batch snapshot reads
 
 The implementation follows the rules in `.cursor/rules`.
 
@@ -18,7 +19,7 @@ The implementation follows the rules in `.cursor/rules`.
 - Redis owns broker/event delivery concerns.
 - The frontend calls only the Go API.
 - Caddy/Nginx owns public ingress at the server level and is not part of this app compose stack.
-- Python execution, Celery workers, artifact service, report service, auth, catalog, snapshots, and SSE are later phases.
+- Python execution, Celery workers, artifact service, report service, SSE, and Studio/QC workflows are later phases.
 
 ## Local Setup
 
@@ -33,16 +34,25 @@ Default local endpoints:
 - Frontend: `http://localhost:3000`
 - Go API health: `http://localhost:8080/health`
 
+Default local admin:
+
+- Email: `test@example.com`
+- Password: `Test@$1234`
+
+The base admin password is hashed before storage. Rotate these credentials outside local development.
+
 ## Commands
 
 ```sh
 make compose-config
 make up
 make down
+make api-build
 make api-test
 make api-vet
 make frontend-lint
 make frontend-build
+make frontend-e2e
 make smoke
 ```
 

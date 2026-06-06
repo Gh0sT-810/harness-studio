@@ -7,7 +7,10 @@ import (
 
 	"github.com/Gh0sT-810/harness-studio/api/app/config"
 	"github.com/Gh0sT-810/harness-studio/api/app/http/routes"
+	"github.com/Gh0sT-810/harness-studio/api/app/repositories"
+	"github.com/Gh0sT-810/harness-studio/api/app/services"
 	"github.com/Gh0sT-810/harness-studio/api/app/services/container"
+	"github.com/Gh0sT-810/harness-studio/api/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,11 +31,15 @@ func main() {
 		log.Fatalf("failed to load configuration: %v", err)
 	}
 
-	db, err := pgxpool.New(context.Background(), cfg.DBConnectionString)
+	pool, err := pgxpool.New(context.Background(), cfg.DBConnectionString)
 	if err != nil {
 		log.Fatalf("failed to create postgres pool: %v", err)
 	}
-	defer db.Close()
+	defer pool.Close()
+
+	if err := db.RunMigrations(context.Background(), pool); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
 
 	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddress})
 	defer func() {
@@ -46,14 +53,21 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.CORSOrigin},
-		AllowMethods:     []string{"GET", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
-	serviceContainer := container.NewContainer(db, redisPinger{client: redisClient})
+	store := repositories.NewStore(pool)
+	authService := services.NewAuthService(store, *cfg)
+	if err := authService.Bootstrap(context.Background()); err != nil {
+		log.Fatalf("failed to bootstrap auth: %v", err)
+	}
+	catalogService := services.NewCatalogService(store)
+	executionService := services.NewExecutionService(store)
+	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService)
 	routes.SetupRoutes(router, serviceContainer)
 
 	if err := router.Run(cfg.ServerAddress); err != nil {
