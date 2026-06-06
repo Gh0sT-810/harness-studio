@@ -6,7 +6,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3100',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -16,9 +16,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'vite --host 127.0.0.1 --port 3000',
-    url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    command: 'vite --host 127.0.0.1 --port 3100',
+    url: 'http://localhost:3100',
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 })

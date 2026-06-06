@@ -1,0 +1,98 @@
+import { FormEvent, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+
+import { EmptyState } from '@/components/EmptyState'
+import { StatusBadge } from '@/components/StatusBadge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { batchApi, gymApi, modelApi, taskApi } from '@/lib/api'
+
+export function Batches() {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState('Phase 2 Batch')
+  const [gymId, setGymId] = useState('')
+  const [taskIds, setTaskIds] = useState<string[]>([])
+  const [modelIds, setModelIds] = useState<string[]>([])
+  const [iterationCount, setIterationCount] = useState(1)
+  const gymsQuery = useQuery({ queryKey: ['gyms'], queryFn: gymApi.list })
+  const tasksQuery = useQuery({ queryKey: ['tasks'], queryFn: taskApi.list })
+  const modelsQuery = useQuery({ queryKey: ['models'], queryFn: modelApi.list })
+  const batchesQuery = useQuery({ queryKey: ['batches'], queryFn: batchApi.list })
+  const tasks = useMemo(() => (tasksQuery.data ?? []).filter((task) => !gymId || task.gymId === gymId), [gymId, tasksQuery.data])
+
+  const createBatch = useMutation({
+    mutationFn: () => batchApi.create(gymId, taskIds, modelIds, iterationCount, name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['batches'] }),
+  })
+
+  function toggle(value: string, list: string[], setter: (next: string[]) => void) {
+    setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value])
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    createBatch.mutate()
+  }
+
+  return (
+    <div data-id="batches-page" className="harness-page">
+      <section>
+        <h2 className="harness-title">Batches</h2>
+        <p className="harness-subtitle">Create metadata-only batches and open one-shot snapshots.</p>
+      </section>
+      <Card data-id="batch-form-card" className="p-6">
+        <CardHeader>
+          <CardTitle>Create batch</CardTitle>
+          <CardDescription>Select tasks, models, and iteration count. Execution snapshots are created on submit.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form data-id="batch-form" className="grid gap-4" onSubmit={handleSubmit}>
+            <input data-id="batch-name-input" className="harness-input" value={name} onChange={(event) => setName(event.target.value)} />
+            <select data-id="batch-gym-select" className="harness-input" value={gymId} onChange={(event) => setGymId(event.target.value)} required>
+              <option value="">Select gym</option>
+              {(gymsQuery.data ?? []).map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
+            </select>
+            <input data-id="batch-iteration-count" className="harness-input" type="number" min={1} value={iterationCount} onChange={(event) => setIterationCount(Number(event.target.value))} />
+            <div data-id="batch-task-options" className="grid gap-2">
+              <p className="text-sm font-semibold">Tasks</p>
+              {tasks.map((task) => (
+                <label data-id={`batch-task-option-${task.id}`} className="flex gap-2 text-sm" key={task.id}>
+                  <input type="checkbox" checked={taskIds.includes(task.id)} onChange={() => toggle(task.id, taskIds, setTaskIds)} />
+                  {task.taskId}
+                </label>
+              ))}
+            </div>
+            <div data-id="batch-model-options" className="grid gap-2">
+              <p className="text-sm font-semibold">Models</p>
+              {(modelsQuery.data ?? []).map((model) => (
+                <label data-id={`batch-model-option-${model.id}`} className="flex gap-2 text-sm" key={model.id}>
+                  <input type="checkbox" checked={modelIds.includes(model.id)} onChange={() => toggle(model.id, modelIds, setModelIds)} />
+                  {model.displayName}
+                </label>
+              ))}
+            </div>
+            <Button data-id="batch-submit" type="submit" disabled={!gymId || taskIds.length === 0 || modelIds.length === 0}>Create batch</Button>
+          </form>
+        </CardContent>
+      </Card>
+      {(batchesQuery.data ?? []).length === 0 ? <EmptyState id="batches-empty" message="No batches found." /> : null}
+      <section data-id="batches-list" className="grid gap-3">
+        {(batchesQuery.data ?? []).map((batch) => (
+          <Card data-id={`batch-card-${batch.id}`} className="p-6" key={batch.id}>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>{batch.name}</CardTitle>
+                <StatusBadge id={`batch-status-${batch.id}`} status={batch.status} />
+              </div>
+              <CardDescription>{batch.iterationCount} iteration(s)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button data-id={`batch-snapshot-link-${batch.id}`} variant="secondary" asChild><Link to={`/batches/${batch.id}/runs`}>Open snapshot</Link></Button>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+    </div>
+  )
+}

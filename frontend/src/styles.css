@@ -25,28 +25,46 @@
     --steel: #5a5a5c;
     --muted: #888888;
     --hairline: #e5e5e5;
+    --hairline-soft: #ededed;
     --brand-green: #00d4a4;
     --brand-green-deep: #00b48a;
     --brand-error: #d45656;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color: #f7f7f8;
-      background: #0a0a0a;
+  :root.dark {
+    color: #f7f7f8;
+    background: #0a0a0a;
 
-      --primary: #f7f7f8;
-      --on-primary: #0a0a0a;
-      --charcoal: #d4d4d8;
-      --canvas: #0a0a0a;
-      --surface: #111113;
-      --surface-soft: #18181b;
-      --ink: #f7f7f8;
-      --slate: #d4d4d8;
-      --steel: #a1a1aa;
-      --muted: #71717a;
-      --hairline: #2a2a2e;
-    }
+    --primary: #f7f7f8;
+    --on-primary: #0a0a0a;
+    --charcoal: #d4d4d8;
+    --canvas: #0a0a0a;
+    --surface: #111113;
+    --surface-soft: #18181b;
+    --ink: #f7f7f8;
+    --slate: #d4d4d8;
+    --steel: #a1a1aa;
+    --muted: #71717a;
+    --hairline: #2a2a2e;
+    --hairline-soft: #202024;
+  }
+
+  :root.light {
+    color: #0a0a0a;
+    background: #ffffff;
+
+    --primary: #0a0a0a;
+    --on-primary: #ffffff;
+    --charcoal: #1c1c1e;
+    --canvas: #ffffff;
+    --surface: #f7f7f7;
+    --surface-soft: #fafafa;
+    --ink: #0a0a0a;
+    --slate: #3a3a3c;
+    --steel: #5a5a5c;
+    --muted: #888888;
+    --hairline: #e5e5e5;
+    --hairline-soft: #ededed;
   }
 
   * {
@@ -62,5 +80,43 @@
   a {
     color: inherit;
     text-decoration: none;
+  }
+}
+
+@layer components {
+  .harness-page {
+    @apply grid gap-6;
+  }
+
+  .harness-page-header {
+    @apply flex flex-wrap items-end justify-between gap-3 border-b border-[var(--hairline-soft)] pb-5;
+  }
+
+  .harness-kicker {
+    @apply text-[11px] font-semibold uppercase leading-[1.4] tracking-[0.5px] text-[var(--brand-green-deep)];
+  }
+
+  .harness-title {
+    @apply text-[36px] font-semibold leading-[1.2] tracking-[-0.5px] text-[var(--ink)];
+  }
+
+  .harness-subtitle {
+    @apply max-w-2xl text-sm leading-6 text-[var(--steel)];
+  }
+
+  .harness-input {
+    @apply h-10 rounded-md border border-[var(--hairline)] bg-[var(--canvas)] px-3 text-base text-[var(--ink)] outline-none transition-colors focus:border-2 focus:border-[var(--brand-green)];
+  }
+
+  .harness-textarea {
+    @apply rounded-md border border-[var(--hairline)] bg-[var(--canvas)] px-3 py-2 text-base leading-6 text-[var(--ink)] outline-none transition-colors focus:border-2 focus:border-[var(--brand-green)];
+  }
+
+  .harness-code-field {
+    @apply font-mono text-sm leading-6;
+  }
+
+  .harness-dashboard-grid {
+    @apply grid gap-4 md:grid-cols-2 xl:grid-cols-3;
   }
 }
