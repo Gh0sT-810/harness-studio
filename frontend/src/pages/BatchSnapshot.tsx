@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -46,10 +47,17 @@ export function BatchSnapshotPage() {
   return (
     <div data-id="batch-snapshot-page" className="harness-page">
       <section className="harness-page-header">
-        <div>
-          <p className="harness-kicker">BatchRuns</p>
-          <h2 className="harness-title">{snapshot.batch.name}</h2>
-          <p className="harness-subtitle">Snapshot plus SSE live state. No per-row or per-card polling loops.</p>
+        <div className="flex items-start gap-3">
+          <Button data-id="snapshot-back-to-batches" variant="ghost" size="sm" asChild>
+            <Link to="/batches" aria-label="Back to batches">
+              <ArrowLeft size={18} />
+            </Link>
+          </Button>
+          <div>
+            <p className="harness-kicker">BatchRuns</p>
+            <h2 className="harness-title">{snapshot.batch.name}</h2>
+            <p className="harness-subtitle">Snapshot plus SSE live state. No per-row or per-card polling loops.</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <StatusBadge id="event-connection-state" status={connectionState} />
@@ -66,29 +74,29 @@ export function BatchSnapshotPage() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <div className="grid gap-4">
-          <Card data-id="failure-diagnostics-panel" className="p-6">
+          <Card data-id="failure-diagnostics-panel" className="harness-card-padding">
             <CardHeader>
               <CardTitle>Failure diagnostics</CardTitle>
               <CardDescription>Phase 3 placeholder fed by snapshot and event counts.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-sm text-[var(--steel)]">failed={snapshot.counts.failed ?? 0} crashed={snapshot.counts.crashed ?? 0} timeout={snapshot.counts.timeout ?? 0}</p>
+              <p className="harness-code-inline w-fit">failed={snapshot.counts.failed ?? 0} crashed={snapshot.counts.crashed ?? 0} timeout={snapshot.counts.timeout ?? 0}</p>
             </CardContent>
           </Card>
 
-          <Card data-id="batch-insights-tabs" className="p-6">
+          <Card data-id="batch-insights-tabs" className="harness-card-padding">
             <CardHeader>
               <CardTitle>Insights</CardTitle>
               <CardDescription>Report readiness and model/task insights will attach here in later phases.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p data-id="report-readiness" className="font-mono text-sm text-[var(--steel)]">report={String(snapshot.report?.status ?? 'not_configured')}</p>
+              <p data-id="report-readiness" className="harness-code-inline w-fit">report={String(snapshot.report?.status ?? 'not_configured')}</p>
             </CardContent>
           </Card>
 
           <section data-id="snapshot-executions" className="grid gap-3">
             {snapshot.executions.map((execution) => (
-              <Card data-id={`snapshot-execution-${execution.id}`} className="p-6" key={execution.id}>
+              <Card data-id={`snapshot-execution-${execution.id}`} className="harness-card-padding" key={execution.id}>
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
                     <CardTitle>{execution.snapshotPrompt}</CardTitle>
@@ -96,7 +104,7 @@ export function BatchSnapshotPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-mono text-sm text-[var(--steel)]">{execution.id}</p>
+                  <p className="harness-code-inline w-fit">{execution.id}</p>
                 </CardContent>
               </Card>
             ))}
@@ -104,17 +112,21 @@ export function BatchSnapshotPage() {
         </div>
 
         <aside className="grid gap-4">
-          <Card data-id="event-stream-panel" className="p-6">
+          <Card data-id="event-stream-panel" className="overflow-hidden">
             <CardHeader>
               <CardTitle>Live events</CardTitle>
               <CardDescription>latest id: <span data-id="latest-event-id">{latestEventId || 'none'}</span></CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
-              {snapshot.recentEvents.length === 0 ? <p data-id="recent-events-empty" className="text-sm text-[var(--steel)]">No events received yet.</p> : null}
+              <div className="harness-code-block-header">
+                <span>Redis stream</span>
+                <button className="harness-copy-code-button" type="button">Live</button>
+              </div>
+              {snapshot.recentEvents.length === 0 ? <p data-id="recent-events-empty" className="harness-subtitle">No events received yet.</p> : null}
               {snapshot.recentEvents.map((event) => (
-                <div data-id={`recent-event-${event.id}`} className="rounded-lg border border-[var(--hairline)] p-3" key={event.id}>
-                  <p className="font-mono text-sm">{event.type}</p>
-                  <p className="text-xs text-[var(--steel)]">{event.sequence}</p>
+                <div data-id={`recent-event-${event.id}`} className="harness-code-block" key={event.id}>
+                  <p>{event.type}</p>
+                  <p className="text-[var(--on-dark-muted)]">{event.sequence}</p>
                 </div>
               ))}
             </CardContent>
@@ -122,7 +134,7 @@ export function BatchSnapshotPage() {
 
           <section data-id="snapshot-iterations" className="grid gap-2">
             {snapshot.iterations.map((iteration) => (
-              <div data-id={`snapshot-iteration-${iteration.id}`} className="flex items-center justify-between rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] p-4" key={iteration.id}>
+              <div data-id={`snapshot-iteration-${iteration.id}`} className="harness-card-base flex items-center justify-between p-4" key={iteration.id}>
                 <span>Iteration {iteration.iterationNumber}</span>
                 <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
               </div>
@@ -136,7 +148,7 @@ export function BatchSnapshotPage() {
 
 function SummaryCard({ id, title, description }: { id: string; title: string; description: string }) {
   return (
-    <Card data-id={id} className="p-6">
+    <Card data-id={id} className="harness-card-padding">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>

@@ -5,7 +5,16 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select } from '@/components/ui/select'
 import { Gym, gymApi } from '@/lib/api'
+
+const verificationStrategyOptions = [
+  { label: 'verification_endpoint', value: 'verification_endpoint' },
+  { label: 'local_storage_assertions', value: 'local_storage_assertions' },
+  { label: 'grader_config', value: 'grader_config' },
+  { label: 'verifier_api_script', value: 'verifier_api_script' },
+  { label: 'db_json_validator', value: 'db_json_validator' },
+]
 
 export function Gyms() {
   const queryClient = useQueryClient()
@@ -63,16 +72,21 @@ export function Gyms() {
 
   return (
     <div data-id="gyms-page" className="harness-page">
-      <section className="harness-page-header">
+      <section data-id="gyms-header-section" className="harness-page-header">
         <div>
           <p className="harness-kicker">Catalog</p>
           <h2 className="harness-title">Gyms</h2>
           <p className="harness-subtitle">Manage simulated app environments and verification strategy.</p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
-          <input data-id="gyms-search" className="harness-input" placeholder="Search gyms" value={search} onChange={(event) => setSearch(event.target.value)} />
+      </section>
+
+      <section data-id="gyms-actions-section" className="harness-actions-section">
+        <p data-id="gyms-actions-label" className="harness-actions-label">Actions:</p>
+        <div className="harness-actions-row">
+          <input data-id="gyms-search" className="harness-input min-w-64 flex-1" placeholder="Search gyms" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Button
             data-id="add-gym-button"
+            className="shrink-0"
             type="button"
             onClick={() => {
               resetForm()
@@ -85,7 +99,7 @@ export function Gyms() {
       </section>
 
       {showForm ? (
-        <Card data-id="gym-form-card" className="p-6">
+        <Card data-id="gym-form-card" className="harness-card-padding">
           <CardHeader>
             <CardTitle>{editing ? 'Edit gym' : 'Create gym'}</CardTitle>
             <CardDescription>Verification strategy and similarity metadata are stored in the catalog schema.</CardDescription>
@@ -94,13 +108,7 @@ export function Gyms() {
             <form data-id="gym-form" className="grid gap-3 md:grid-cols-4" onSubmit={handleSubmit}>
               <input data-id="gym-name-input" className="harness-input" placeholder="Name" value={name} onChange={(event) => setName(event.target.value)} required />
               <input data-id="gym-base-url-input" className="harness-input" placeholder="Base URL" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required />
-              <select data-id="gym-strategy-select" className="harness-input" value={strategy} onChange={(event) => setStrategy(event.target.value)}>
-                <option value="verification_endpoint">verification_endpoint</option>
-                <option value="local_storage_assertions">local_storage_assertions</option>
-                <option value="grader_config">grader_config</option>
-                <option value="verifier_api_script">verifier_api_script</option>
-                <option value="db_json_validator">db_json_validator</option>
-              </select>
+              <Select dataId="gym-strategy-select" onValueChange={setStrategy} options={verificationStrategyOptions} value={strategy} />
               <div className="flex gap-2">
                 <Button data-id="gym-submit" type="submit">{editing ? 'Save gym' : 'Create gym'}</Button>
                 <Button data-id="gym-form-cancel" type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
@@ -114,13 +122,13 @@ export function Gyms() {
       {filtered.length === 0 ? <EmptyState id="gyms-empty" message="No gyms found." /> : null}
       <section data-id="gyms-grid" className="harness-dashboard-grid">
         {filtered.map((gym) => (
-          <Card data-id={`gym-card-${gym.id}`} className="p-6" key={gym.id}>
+          <Card data-id={`gym-card-${gym.id}`} className="harness-card-padding" key={gym.id}>
             <CardHeader>
               <CardTitle>{gym.name}</CardTitle>
               <CardDescription>{gym.baseUrl}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <p data-id={`gym-strategy-${gym.id}`} className="font-mono text-xs text-[var(--steel)]">{gym.verificationStrategy}</p>
+              <p data-id={`gym-strategy-${gym.id}`} className="harness-code-inline w-fit">{gym.verificationStrategy}</p>
               <p data-id={`gym-task-count-${gym.id}`} className="harness-subtitle">{gym.taskCount ?? 0} tasks</p>
               <div className="flex flex-wrap gap-2">
                 <Button data-id={`gym-tasks-link-${gym.id}`} variant="secondary" asChild><Link to={`/gyms/${gym.id}/tasks`}>Tasks</Link></Button>

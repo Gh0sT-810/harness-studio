@@ -7,6 +7,7 @@ import { Batches } from '@/pages/Batches'
 import { BatchSnapshotPage } from '@/pages/BatchSnapshot'
 import { Gyms } from '@/pages/Gyms'
 import { Login } from '@/pages/Login'
+import { TaskEdit } from '@/pages/TaskEdit'
 import { Tasks } from '@/pages/Tasks'
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
           <Route path="/gyms" element={<Gyms />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/gyms/:gymId/tasks" element={<Tasks />} />
+          <Route path="/gyms/:gymId/tasks/:taskId/edit" element={<TaskEdit />} />
           <Route path="/models" element={<Navigate to="/admin?tab=models" replace />} />
           <Route path="/batches" element={<Batches />} />
           <Route path="/batches/:id/runs" element={<BatchSnapshotPage />} />

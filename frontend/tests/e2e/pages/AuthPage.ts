@@ -5,6 +5,7 @@ import { routes } from '../fixtures/test-data'
 
 export class AuthPage extends BasePage {
   readonly loginPage: Locator
+  readonly loginCard: Locator
   readonly loginForm: Locator
   readonly emailInput: Locator
   readonly passwordInput: Locator
@@ -13,6 +14,7 @@ export class AuthPage extends BasePage {
   constructor(page: Page) {
     super(page)
     this.loginPage = this.byDataId('login-page')
+    this.loginCard = this.byDataId('login-card')
     this.loginForm = this.byDataId('login-form')
     this.emailInput = this.byDataId('login-email')
     this.passwordInput = this.byDataId('login-password')

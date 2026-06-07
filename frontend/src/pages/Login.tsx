@@ -28,9 +28,10 @@ export function Login() {
   }
 
   return (
-    <main data-id="login-page" className="grid min-h-screen place-items-center bg-[var(--canvas)] p-6 text-[var(--ink)]">
-      <Card className="w-full max-w-md p-6">
+    <main data-id="login-page" className="harness-hero-band-sky grid min-h-screen place-items-center p-6">
+      <Card data-id="login-card" className="harness-card-padding w-full max-w-md shadow-[var(--shadow-card)]">
         <CardHeader>
+          <p className="harness-kicker">Authentication</p>
           <CardTitle>Harness Studio Login</CardTitle>
           <CardDescription>Use the seeded base admin for local Phase 2 verification.</CardDescription>
         </CardHeader>
@@ -38,7 +39,7 @@ export function Login() {
           <form data-id="login-form" className="grid gap-4" onSubmit={handleSubmit}>
             <input data-id="login-email" className="harness-input" value={email} onChange={(event) => setEmail(event.target.value)} />
             <input data-id="login-password" type="password" className="harness-input" value={password} onChange={(event) => setPassword(event.target.value)} />
-            {error ? <p data-id="login-error" className="text-sm text-[var(--brand-error)]">{error}</p> : null}
+            {error ? <p data-id="login-error" className="harness-body-sm text-[var(--brand-error)]">{error}</p> : null}
             <Button data-id="login-submit" type="submit">Log in</Button>
           </form>
         </CardContent>

@@ -1,11 +1,13 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { gymApi, Task, taskApi } from '@/lib/api'
+import { Select } from '@/components/ui/select'
+import { gymApi, taskApi } from '@/lib/api'
 
 function parseJSON(value: string) {
   try {
@@ -20,7 +22,6 @@ export function Tasks() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState<Task | null>(null)
   const [selectedGymId, setSelectedGymId] = useState(gymId ?? '')
   const [taskId, setTaskId] = useState('')
   const [prompt, setPrompt] = useState('')
@@ -31,6 +32,7 @@ export function Tasks() {
   const gymsQuery = useQuery({ queryKey: ['gyms'], queryFn: gymApi.list })
   const tasksQuery = useQuery({ queryKey: ['tasks'], queryFn: taskApi.list })
   const gyms = useMemo(() => gymsQuery.data ?? [], [gymsQuery.data])
+  const gymOptions = useMemo(() => gyms.map((gym) => ({ label: gym.name, value: gym.id })), [gyms])
   const selectedGym = gyms.find((gym) => gym.id === (selectedGymId || gymId))
   const tasks = useMemo(
     () => (tasksQuery.data ?? []).filter((task) => !gymId || task.gymId === gymId),
@@ -57,7 +59,7 @@ export function Tasks() {
         dbJsonValidator: parseJSON(dbJsonValidator),
         verifierPath,
       }
-      return editing ? taskApi.update(editing.id, payload) : taskApi.create(payload)
+      return taskApi.create(payload)
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
@@ -70,7 +72,6 @@ export function Tasks() {
   })
 
   function resetForm() {
-    setEditing(null)
     setShowForm(false)
     setSelectedGymId(gymId ?? '')
     setTaskId('')
@@ -81,18 +82,6 @@ export function Tasks() {
     setVerifierPath('')
   }
 
-  function editTask(task: Task) {
-    setEditing(task)
-    setShowForm(true)
-    setSelectedGymId(task.gymId)
-    setTaskId(task.taskId)
-    setPrompt(task.prompt)
-    setGraderConfig(JSON.stringify(task.graderConfig ?? {}, null, 2))
-    setSimulatorConfig(JSON.stringify(task.simulatorConfig ?? {}, null, 2))
-    setDbJsonValidator(JSON.stringify(task.dbJsonValidator ?? {}, null, 2))
-    setVerifierPath(task.verifierPath ?? '')
-  }
-
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     saveTask.mutate()
@@ -100,16 +89,30 @@ export function Tasks() {
 
   return (
     <div data-id="tasks-page" className="harness-page">
-      <section className="harness-page-header">
-        <div>
-          <p className="harness-kicker">Catalog</p>
-          <h2 className="harness-title">{gymId ? `${selectedGym?.name ?? 'Gym'} Tasks` : 'Tasks'}</h2>
-          <p className="harness-subtitle">Create task prompts and verification configs for the catalog.</p>
+      <section data-id="tasks-header-section" className="harness-page-header">
+        <div className="flex items-start gap-3">
+          {gymId ? (
+            <Button data-id="tasks-back-to-gyms" variant="ghost" size="sm" asChild>
+              <Link to="/gyms" aria-label="Back to gyms">
+                <ArrowLeft size={18} />
+              </Link>
+            </Button>
+          ) : null}
+          <div>
+            <p className="harness-kicker">Catalog</p>
+            <h2 className="harness-title">{gymId ? `${selectedGym?.name ?? 'Gym'} Tasks` : 'Tasks'}</h2>
+            <p className="harness-subtitle">Create task prompts and verification configs for the catalog.</p>
+          </div>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
-          <input data-id="tasks-search" className="harness-input" placeholder="Search tasks" value={search} onChange={(event) => setSearch(event.target.value)} />
+      </section>
+
+      <section data-id="tasks-actions-section" className="harness-actions-section">
+        <p data-id="tasks-actions-label" className="harness-actions-label">Actions:</p>
+        <div className="harness-actions-row">
+          <input data-id="tasks-search" className="harness-input min-w-64 flex-1" placeholder="Search tasks" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Button
             data-id="add-task-button"
+            className="shrink-0"
             type="button"
             onClick={() => {
               resetForm()
@@ -122,17 +125,21 @@ export function Tasks() {
       </section>
 
       {showForm ? (
-        <Card data-id="task-form-card" className="p-6">
+        <Card data-id="task-form-card" className="harness-card-padding">
           <CardHeader>
-            <CardTitle>{editing ? 'Edit task' : 'Add task'}</CardTitle>
+            <CardTitle>Add task</CardTitle>
             <CardDescription>Form sections adapt to the selected gym verification strategy.</CardDescription>
           </CardHeader>
           <CardContent>
             <form data-id="task-form" className="grid gap-3" onSubmit={handleSubmit}>
-              <select data-id="task-gym-select" className="harness-input" value={selectedGymId || gymId || ''} onChange={(event) => setSelectedGymId(event.target.value)} required disabled={Boolean(gymId)}>
-                <option value="">Select gym</option>
-                {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
-              </select>
+              <Select
+                dataId="task-gym-select"
+                disabled={Boolean(gymId)}
+                onValueChange={setSelectedGymId}
+                options={gymOptions}
+                placeholder="Select gym"
+                value={selectedGymId || gymId || ''}
+              />
               <input data-id="task-id-input" className="harness-input" placeholder="Task ID" value={taskId} onChange={(event) => setTaskId(event.target.value)} required />
               <textarea data-id="task-prompt-input" className="harness-textarea min-h-24" placeholder="Prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} required />
               {selectedGym?.verificationStrategy === 'grader_config' ? (
@@ -146,7 +153,7 @@ export function Tasks() {
               ) : null}
               <textarea data-id="task-simulator-config-input" className="harness-textarea harness-code-field min-h-20" value={simulatorConfig} onChange={(event) => setSimulatorConfig(event.target.value)} />
               <div className="flex gap-2">
-                <Button data-id="task-submit" type="submit">{editing ? 'Save task' : 'Create task'}</Button>
+                <Button data-id="task-submit" type="submit">Create task</Button>
                 <Button data-id="task-form-cancel" type="button" variant="secondary" onClick={resetForm}>Cancel</Button>
               </div>
             </form>
@@ -157,7 +164,7 @@ export function Tasks() {
       {filtered.length === 0 ? <EmptyState id="tasks-empty" message="No tasks found." /> : null}
       <section data-id="tasks-list" className="harness-dashboard-grid">
         {filtered.map((task) => (
-          <Card data-id={`task-card-${task.id}`} className="p-6" key={task.id}>
+          <Card data-id={`task-card-${task.id}`} className="harness-card-padding" key={task.id}>
             <CardHeader>
               <CardTitle>{task.taskId}</CardTitle>
               <CardDescription>{task.prompt}</CardDescription>
@@ -165,7 +172,9 @@ export function Tasks() {
             <CardContent className="grid gap-3">
               <p data-id={`task-gym-${task.id}`} className="harness-subtitle">{gyms.find((gym) => gym.id === task.gymId)?.name ?? 'Unknown gym'}</p>
               <div className="flex flex-wrap gap-2">
-                <Button data-id={`task-edit-${task.id}`} variant="secondary" onClick={() => editTask(task)}>Edit</Button>
+                <Button data-id={`task-edit-${task.id}`} variant="secondary" asChild>
+                  <Link to={`/gyms/${task.gymId}/tasks/${task.id}/edit`}>Edit</Link>
+                </Button>
                 <Button data-id={`task-delete-${task.id}`} variant="ghost" onClick={() => deleteTask.mutate(task.id)}>Delete</Button>
               </div>
             </CardContent>

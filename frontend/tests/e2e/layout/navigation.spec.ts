@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { mockPhase2Api, seedAuthenticatedState } from '../helpers/mock-api'
+import { mockGym, mockPhase2Api, seedAuthenticatedState } from '../helpers/mock-api'
 import { AdminPage } from '../pages/AdminPage'
 import { AppShellPage } from '../pages/AppShellPage'
 import { CatalogPage } from '../pages/CatalogPage'
@@ -20,8 +20,9 @@ test.describe('Navigation Layout', () => {
 
     await expect(shell.shell).toBeVisible()
     await expect(catalog.gymsPage).toBeVisible()
+    await expect(page.locator('[data-id="nav-tasks"]')).toHaveCount(0)
 
-    await shell.tasksNav.click()
+    await catalog.gymTasksLink(mockGym.id).click()
     await expect(catalog.tasksPage).toBeVisible()
 
     await expect(shell.modelsNav).toHaveCount(0)
@@ -31,6 +32,7 @@ test.describe('Navigation Layout', () => {
 
     await shell.adminNav.click()
     await expect(admin.adminPage).toBeVisible()
+    await expect(admin.adminTabs).toHaveClass(/harness-segmented-tabs/)
     await expect(admin.usersCard).toBeVisible()
 
     await admin.modelsTab.click()

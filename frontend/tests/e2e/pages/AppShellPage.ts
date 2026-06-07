@@ -9,7 +9,6 @@ export class AppShellPage extends BasePage {
   readonly collapseToggle: Locator
   readonly themeToggle: Locator
   readonly gymsNav: Locator
-  readonly tasksNav: Locator
   readonly modelsNav: Locator
   readonly batchesNav: Locator
   readonly adminNav: Locator
@@ -22,7 +21,6 @@ export class AppShellPage extends BasePage {
     this.collapseToggle = this.byDataId('sidebar-collapse')
     this.themeToggle = this.byDataId('theme-toggle')
     this.gymsNav = this.byDataId('nav-gyms')
-    this.tasksNav = this.byDataId('nav-tasks')
     this.modelsNav = this.byDataId('nav-models')
     this.batchesNav = this.byDataId('nav-batches')
     this.adminNav = this.byDataId('nav-admin')

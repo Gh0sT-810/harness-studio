@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { path: '/gyms', label: 'Gyms', id: 'nav-gyms', icon: Boxes },
-  { path: '/tasks', label: 'Tasks', id: 'nav-tasks', icon: Workflow },
   { path: '/batches', label: 'Batches', id: 'nav-batches', icon: Workflow },
   { path: '/admin', label: 'Admin', id: 'nav-admin', admin: true, icon: Shield },
 ]
@@ -38,7 +37,7 @@ export function Layout() {
   }
 
   return (
-    <main data-id="app-shell" className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,rgb(135_168_200_/_24%),transparent_32rem),linear-gradient(135deg,rgb(245_233_216_/_50%),transparent_30rem),var(--canvas)] text-[var(--ink)] transition-colors duration-500">
+    <main data-id="app-shell" className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,color-mix(in_srgb,var(--hero-sky-from)_24%,transparent),transparent_32rem),linear-gradient(135deg,color-mix(in_srgb,var(--hero-sky-to)_50%,transparent),transparent_30rem),var(--canvas)] text-[var(--ink)] transition-colors duration-500">
       <div className="flex">
         <aside
           data-id="app-sidebar"
@@ -50,18 +49,18 @@ export function Layout() {
           <div data-id="sidebar-header" className={cn('flex h-16 flex-shrink-0 items-center border-b border-[var(--hairline-soft)]', sidebarExpanded ? 'gap-3 px-4' : 'justify-center')}>
             {sidebarExpanded ? (
               <>
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] shadow-[var(--shadow-subtle)]">
                   <span className="text-sm font-bold text-[var(--on-primary)]">H</span>
                 </div>
                 <span className="truncate text-base font-bold tracking-tight">
                   Harness<span className="text-[var(--brand-green-deep)]">Studio</span>
                 </span>
-                <button data-id="sidebar-collapse" className="ml-auto rounded-md p-1.5 transition-colors hover:bg-[var(--surface)]" onClick={() => setSidebarExpanded(false)}>
+                <button data-id="sidebar-collapse" className="ml-auto rounded-md p-1.5 text-[var(--steel)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--ink)]" onClick={() => setSidebarExpanded(false)}>
                   <ArrowLeft size={18} />
                 </button>
               </>
             ) : (
-              <button data-id="sidebar-expand" className="rounded-md p-2 transition-colors hover:bg-[var(--surface)]" onClick={() => setSidebarExpanded(true)}>
+              <button data-id="sidebar-expand" className="rounded-md p-2 text-[var(--steel)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--ink)]" onClick={() => setSidebarExpanded(true)}>
                 <Menu size={20} />
               </button>
             )}
@@ -78,8 +77,8 @@ export function Layout() {
                   title={item.label}
                   className={({ isActive }) =>
                     cn(
-                      'group relative flex h-11 items-center rounded-sm transition-all duration-200',
-                      isActive ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : 'text-[var(--ink)] hover:bg-[var(--surface)]',
+                      'harness-sidebar-nav-item group relative flex h-11 items-center',
+                      isActive ? 'harness-sidebar-nav-item-active' : 'hover:bg-[var(--surface)] hover:text-[var(--ink)]',
                     )
                   }
                 >
@@ -102,7 +101,7 @@ export function Layout() {
           <div data-id="sidebar-footer" className="flex flex-col gap-1 border-t border-[var(--hairline-soft)] p-2">
             <button
               data-id="theme-toggle"
-              className="group relative flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
+              className="harness-sidebar-nav-item group relative flex h-11 w-full items-center hover:bg-[var(--surface)] hover:text-[var(--ink)]"
               onClick={toggleTheme}
               title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
             >
@@ -121,7 +120,7 @@ export function Layout() {
 
             <button
               data-id="logout-button"
-              className="group relative flex h-11 w-full items-center rounded-sm text-[var(--ink)] transition-all duration-200 hover:bg-[var(--surface)]"
+              className="harness-sidebar-nav-item group relative flex h-11 w-full items-center hover:bg-[var(--surface)] hover:text-[var(--ink)]"
               onClick={handleLogout}
               title="Logout"
             >
@@ -141,7 +140,7 @@ export function Layout() {
             <div
               data-id="header-current-user"
               className={cn(
-                'group relative mt-1 flex items-center rounded-lg border border-[var(--hairline-soft)] bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] transition-colors hover:bg-[var(--surface)]',
+                'group relative mt-1 flex items-center rounded-lg border border-[var(--hairline-soft)] bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] shadow-[var(--shadow-subtle)] transition-colors hover:bg-[var(--surface)]',
                 sidebarExpanded ? 'gap-3 p-3' : 'h-11 justify-center p-1',
               )}
             >

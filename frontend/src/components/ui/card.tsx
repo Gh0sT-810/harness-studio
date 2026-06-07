@@ -7,7 +7,7 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card"
       className={cn(
-        'rounded-lg border border-[var(--hairline)] bg-[var(--canvas)] text-[var(--ink)]',
+        'harness-card-base',
         className,
       )}
       {...props}
@@ -20,14 +20,14 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<'h2'>) {
-  return <h2 data-slot="card-title" className={cn('text-lg font-semibold leading-[1.4]', className)} {...props} />
+  return <h2 data-slot="card-title" className={cn('harness-card-title', className)} {...props} />
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<'p'>) {
   return (
     <p
       data-slot="card-description"
-      className={cn('text-sm leading-6 text-[var(--steel)]', className)}
+      className={cn('harness-subtitle', className)}
       {...props}
     />
   )

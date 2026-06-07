@@ -5,11 +5,13 @@ import { useSearchParams } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select } from '@/components/ui/select'
 import { authApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Models } from '@/pages/Models'
 
 const roles = ['admin', 'reviewer', 'trainer', 'auditor']
+const roleOptions = roles.map((role) => ({ label: role, value: role }))
 const tabs = [
   { id: 'users', label: 'Users' },
   { id: 'domains', label: 'Domains' },
@@ -65,16 +67,11 @@ export function Admin() {
         </div>
       </section>
 
-      <div data-id="admin-tabs" className="flex w-fit max-w-full flex-wrap gap-1 rounded-lg border border-[var(--hairline-soft)] bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] p-1 shadow-sm">
+      <div data-id="admin-tabs" className="harness-segmented-tabs">
         {tabs.map((tab) => (
           <button
             aria-selected={activeTab === tab.id}
-            className={cn(
-              'rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
-              activeTab === tab.id
-                ? 'bg-[var(--canvas)] text-[var(--brand-green-deep)] shadow-sm ring-1 ring-[var(--hairline)]'
-                : 'text-[var(--steel)] hover:bg-[color-mix(in_srgb,var(--canvas)_72%,transparent)] hover:text-[var(--ink)]',
-            )}
+            className={cn('harness-segmented-tab', activeTab === tab.id ? 'shadow-[var(--shadow-subtle)]' : '')}
             data-id={`admin-tab-${tab.id}`}
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -86,7 +83,7 @@ export function Admin() {
       </div>
 
       {activeTab === 'users' ? (
-        <Card data-id="admin-users-card" className="p-6">
+        <Card data-id="admin-users-card" className="harness-card-padding">
           <CardHeader>
             <CardTitle>Users</CardTitle>
             <CardDescription>Backend roles are authoritative; frontend gates are UX only.</CardDescription>
@@ -94,14 +91,18 @@ export function Admin() {
           <CardContent className="grid gap-3">
             {(usersQuery.data ?? []).length === 0 ? <EmptyState id="users-empty" message="No users found." /> : null}
             {(usersQuery.data ?? []).map((user) => (
-              <div data-id={`user-row-${user.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--hairline)] p-4" key={user.id}>
-                <div>
-                  <p className="font-medium">{user.email}</p>
-                  <p className="harness-subtitle">{user.displayName}</p>
+              <div data-id={`user-row-${user.id}`} className="harness-property-row flex flex-wrap items-center gap-4" key={user.id}>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+                  <p data-id={`user-name-${user.id}`} className="min-w-32 font-medium">{user.displayName}</p>
+                  <p data-id={`user-email-${user.id}`} className="harness-subtitle truncate">{user.email}</p>
                 </div>
-                <select data-id={`user-role-${user.id}`} className="harness-input" value={user.role} onChange={(event) => updateRole.mutate({ id: user.id, role: event.target.value })}>
-                  {roles.map((role) => <option key={role} value={role}>{role}</option>)}
-                </select>
+                <Select
+                  className="w-40 shrink-0"
+                  dataId={`user-role-${user.id}`}
+                  onValueChange={(role) => updateRole.mutate({ id: user.id, role })}
+                  options={roleOptions}
+                  value={user.role}
+                />
               </div>
             ))}
           </CardContent>
@@ -109,7 +110,7 @@ export function Admin() {
       ) : null}
 
       {activeTab === 'domains' ? (
-        <Card data-id="admin-domains-card" className="p-6">
+        <Card data-id="admin-domains-card" className="harness-card-padding">
           <CardHeader>
             <CardTitle>Domains</CardTitle>
             <CardDescription>Allowed-domain records for admin-managed auth policy.</CardDescription>
@@ -120,7 +121,7 @@ export function Admin() {
               <Button data-id="domain-submit" type="submit">Add domain</Button>
             </form>
             {(domainsQuery.data ?? []).map((item) => (
-              <div data-id={`domain-row-${item.id}`} className="flex items-center justify-between rounded-lg border border-[var(--hairline)] p-4" key={item.id}>
+              <div data-id={`domain-row-${item.id}`} className="harness-property-row flex items-center justify-between" key={item.id}>
                 <span>{item.domain}</span>
                 <Button data-id={`domain-delete-${item.id}`} variant="ghost" onClick={() => deleteDomain.mutate(item.id)}>Delete</Button>
               </div>
@@ -130,7 +131,7 @@ export function Admin() {
       ) : null}
 
       {activeTab === 'models' ? (
-        <Card data-id="admin-models-card" className="p-6">
+        <Card data-id="admin-models-card" className="harness-card-padding">
           <CardHeader>
             <CardTitle>Model Registry</CardTitle>
             <CardDescription>Real provider and model definitions from the catalog schema.</CardDescription>

@@ -18,14 +18,17 @@ export function Models({ embedded = false }: ModelsProps) {
   return (
     <div data-id="models-page" className={embedded ? 'grid gap-6' : 'harness-page'}>
       {embedded ? null : (
-        <section>
-          <h2 className="harness-title">Model Registry</h2>
-          <p className="harness-subtitle">Real provider and model definitions from the catalog schema.</p>
+        <section className="harness-page-header">
+          <div>
+            <p className="harness-kicker">Catalog</p>
+            <h2 className="harness-title">Model Registry</h2>
+            <p className="harness-subtitle">Real provider and model definitions from the catalog schema.</p>
+          </div>
         </section>
       )}
       <section data-id="providers-list" className="grid gap-3 md:grid-cols-2">
         {providers.map((provider) => (
-          <Card data-id={`provider-card-${provider.id}`} className="p-6" key={provider.id}>
+          <Card data-id={`provider-card-${provider.id}`} className="harness-card-padding" key={provider.id}>
             <CardHeader>
               <CardTitle>{provider.name}</CardTitle>
               <CardDescription>{provider.adapterKey}</CardDescription>
@@ -36,16 +39,16 @@ export function Models({ embedded = false }: ModelsProps) {
       {models.length === 0 ? <EmptyState id="models-empty" message="No model definitions found." /> : null}
       <section data-id="models-list" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {models.map((model) => (
-          <Card data-id={`model-card-${model.id}`} className="p-6" key={model.id}>
+          <Card data-id={`model-card-${model.id}`} className="harness-card-padding" key={model.id}>
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <CardTitle>{model.displayName}</CardTitle>
-                {model.isDefault ? <Badge data-id={`model-default-${model.id}`}>default</Badge> : null}
+                {model.isDefault ? <Badge data-id={`model-default-${model.id}`} variant="tag">default</Badge> : null}
               </div>
               <CardDescription>{model.modelName}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-sm text-[var(--steel)]">{model.id}</p>
+              <p className="harness-code-inline w-fit">{model.id}</p>
             </CardContent>
           </Card>
         ))}
