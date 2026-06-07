@@ -67,7 +67,8 @@ func main() {
 	}
 	catalogService := services.NewCatalogService(store)
 	eventService := services.NewEventService(redisClient)
-	executionService := services.NewExecutionService(store, eventService)
+	executionDispatcher := services.NewHTTPExecutionDispatcher(cfg.ExecutionAPIBaseURL, time.Duration(cfg.ExecutionDispatchTTL)*time.Second)
+	executionService := services.NewExecutionService(store, eventService, executionDispatcher)
 	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService)
 	routes.SetupRoutes(router, serviceContainer)
 

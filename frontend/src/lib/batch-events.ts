@@ -7,10 +7,12 @@ export type BatchEventType =
   | 'batch.summary_updated'
   | 'user.action'
   | 'snapshot.required'
+  | 'iteration.enqueued'
   | 'iteration.started'
   | 'iteration.step_added'
   | 'artifact.created'
   | 'iteration.completed'
+  | 'iteration.cancelled'
   | 'execution.updated'
   | 'report.ready'
   | 'iteration.lease_expired'
@@ -78,10 +80,12 @@ export function useBatchEvents(batchId: string | undefined, onEvent: (event: Bat
       'batch.summary_updated',
       'user.action',
       'snapshot.required',
+      'iteration.enqueued',
       'iteration.started',
       'iteration.step_added',
       'artifact.created',
       'iteration.completed',
+      'iteration.cancelled',
       'execution.updated',
       'report.ready',
       'iteration.lease_expired',

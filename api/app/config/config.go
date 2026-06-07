@@ -24,6 +24,8 @@ func LoadConfig() (*models.Config, error) {
 		BootstrapAdminEmail:    env("BOOTSTRAP_ADMIN_EMAIL", "test@example.com"),
 		BootstrapAdminPassword: env("BOOTSTRAP_ADMIN_PASSWORD", "Test@$1234"),
 		DisableAuth:            envBool("DISABLE_AUTH", false),
+		ExecutionAPIBaseURL:    env("EXECUTION_API_BASE_URL", "http://localhost:8090"),
+		ExecutionDispatchTTL:   envInt("EXECUTION_DISPATCH_TIMEOUT_SECONDS", 5),
 	}, nil
 }
 

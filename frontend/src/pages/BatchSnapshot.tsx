@@ -36,7 +36,7 @@ export function BatchSnapshotPage() {
   const snapshot = liveState ?? (snapshotQuery.data ? createLiveBatchState(snapshotQuery.data) : null)
   const progress = useMemo(() => {
     if (!snapshot?.counts.total) return 0
-    const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0)
+    const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0) + (snapshot.counts.cancelled ?? 0)
     return Math.round((terminal / snapshot.counts.total) * 100)
   }, [snapshot])
 

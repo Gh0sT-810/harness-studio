@@ -524,6 +524,31 @@ func (s *Store) GetBatchSnapshot(ctx context.Context, batchID string) (models.Ba
 	}, nil
 }
 
+func (s *Store) ListCancelableIterationIDs(ctx context.Context, batchID string) ([]string, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT iterations.id::text
+FROM execution.iterations
+JOIN execution.executions ON executions.id = iterations.execution_id
+WHERE executions.batch_id = $1
+  AND iterations.status IN ('pending', 'retrying', 'executing')
+ORDER BY executions.created_at, iterations.iteration_number
+`, batchID)
+	if err != nil {
+		return nil, fmt.Errorf("list cancelable iterations: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan cancelable iteration: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // scan helpers and compact query helpers are intentionally local to keep the first Phase 2 store readable.
 type scanner interface {
 	Scan(dest ...any) error
@@ -662,7 +687,12 @@ ORDER BY executions.created_at
 func (s *Store) listIterations(ctx context.Context, batchID string) ([]models.Iteration, error) {
 	rows, err := s.db.Query(ctx, `
 SELECT iterations.id::text, iterations.execution_id::text, iterations.iteration_number, iterations.status,
-       iterations.sub_status, iterations.failure_context, iterations.attempt, iterations.result_data,
+       iterations.sub_status, iterations.failure_context, iterations.attempt,
+       COALESCE(iterations.celery_task_id, ''), iterations.worker_id,
+       COALESCE(iterations.heartbeat_at::text, ''), COALESCE(iterations.lease_expires_at::text, ''),
+       COALESCE(iterations.cancel_requested, false), COALESCE(iterations.cancelled_at::text, ''),
+       COALESCE(iterations.started_at::text, ''), COALESCE(iterations.completed_at::text, ''),
+       iterations.result_data,
        iterations.total_steps, iterations.created_at
 FROM execution.iterations
 JOIN execution.executions ON executions.id = iterations.execution_id
@@ -677,7 +707,26 @@ ORDER BY executions.created_at, iterations.iteration_number
 	for rows.Next() {
 		var iteration models.Iteration
 		var resultData []byte
-		if err := rows.Scan(&iteration.ID, &iteration.ExecutionID, &iteration.IterationNumber, &iteration.Status, &iteration.SubStatus, &iteration.FailureContext, &iteration.Attempt, &resultData, &iteration.TotalSteps, &iteration.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&iteration.ID,
+			&iteration.ExecutionID,
+			&iteration.IterationNumber,
+			&iteration.Status,
+			&iteration.SubStatus,
+			&iteration.FailureContext,
+			&iteration.Attempt,
+			&iteration.CeleryTaskID,
+			&iteration.WorkerID,
+			&iteration.HeartbeatAt,
+			&iteration.LeaseExpiresAt,
+			&iteration.CancelRequested,
+			&iteration.CancelledAt,
+			&iteration.StartedAt,
+			&iteration.CompletedAt,
+			&resultData,
+			&iteration.TotalSteps,
+			&iteration.CreatedAt,
+		); err != nil {
 			return nil, fmt.Errorf("scan iteration: %w", err)
 		}
 		iteration.ResultData = mapFromJSON(resultData)

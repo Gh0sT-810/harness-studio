@@ -1,6 +1,6 @@
 # Harness Studio
 
-Phase 2 establishes the self-hosted harness foundation and core metadata model:
+Phase 4 establishes the self-hosted harness foundation, core metadata model, and the first execution pipeline:
 
 - React + TypeScript frontend shell
 - Go public/control API with `GET /health`
@@ -9,6 +9,7 @@ Phase 2 establishes the self-hosted harness foundation and core metadata model:
 - One app-level Docker Compose stack
 - Server-level Caddy/Nginx examples outside the app compose
 - Auth/RBAC bootstrap, catalog metadata, batch metadata, execution snapshots, and batch snapshot reads
+- Python execution-api, Celery dispatch, execution worker, maintenance worker, heartbeat/lease recovery, and deterministic local runner
 
 The implementation follows the rules in `.cursor/rules`.
 
@@ -19,7 +20,10 @@ The implementation follows the rules in `.cursor/rules`.
 - Redis owns broker/event delivery concerns.
 - The frontend calls only the Go API.
 - Caddy/Nginx owns public ingress at the server level and is not part of this app compose stack.
-- Python execution, Celery workers, artifact service, report service, SSE, and Studio/QC workflows are later phases.
+- Python `execution-api` owns Celery task names, routing, dispatch, cancellation, and worker contracts.
+- `worker-execution` claims and runs one iteration at a time with `concurrency=1` and `max-tasks-per-child=1`.
+- `worker-maintenance` recovers expired leases and re-enqueues retryable iterations.
+- Artifact service, report service, full provider adapters, and Studio/QC workflows are later phases.
 
 ## Local Setup
 
@@ -33,6 +37,7 @@ Default local endpoints:
 
 - Frontend: `http://localhost:3000`
 - Go API health: `http://localhost:8080/health`
+- Execution API health: `http://localhost:8090/internal/health`
 
 Default local admin:
 
@@ -50,11 +55,30 @@ make down
 make api-build
 make api-test
 make api-vet
+make execution-api-test
 make frontend-lint
 make frontend-build
 make frontend-e2e
 make smoke
 ```
+
+## Phase 4 Execution Smoke
+
+The first execution worker uses a deterministic local runner. Creating a batch through the UI or `POST /api/batches` should:
+
+1. Create durable `execution.batches`, `execution.executions`, and `execution.iterations` rows in Postgres.
+2. Have the Go API call `execution-api` at `POST /internal/batches/{id}/dispatch`.
+3. Enqueue one Celery task per dispatchable iteration.
+4. Have `worker-execution` claim each iteration, heartbeat its lease, publish live Redis Stream events, and complete the iteration as `passed`.
+5. Update the batch snapshot page through existing SSE live state.
+
+Run the local stack with:
+
+```sh
+docker compose up --build
+```
+
+Then create a batch from `http://localhost:3000/batches` and open its run page. The iteration should transition from `pending` to `executing` to `passed` without frontend polling loops.
 
 ## Volumes
 

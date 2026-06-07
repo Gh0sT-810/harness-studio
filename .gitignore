@@ -12,6 +12,10 @@ frontend/test-results/
 api/coverage.out
 api/*.test
 
+# Python
+__pycache__/
+**/__pycache__/
+
 # Local tooling
 .idea/
 .vscode/

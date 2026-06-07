@@ -55,6 +55,14 @@ func (bc *BatchController) GetBatchSnapshot(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "batch snapshot retrieved", snapshot)
 }
 
+func (bc *BatchController) CancelBatch(c *gin.Context) {
+	if err := bc.executionService.CancelBatch(c.Request.Context(), c.Param("id")); err != nil {
+		utils.ErrorResponse(c, http.StatusBadGateway, "cancel batch failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusAccepted, "batch cancellation requested", map[string]string{"id": c.Param("id")})
+}
+
 func (bc *BatchController) StreamBatchEvents(c *gin.Context) {
 	if bc.eventService == nil {
 		utils.ErrorResponse(c, http.StatusServiceUnavailable, "event service unavailable")

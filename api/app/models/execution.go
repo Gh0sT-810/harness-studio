@@ -49,6 +49,14 @@ type Iteration struct {
 	SubStatus       string         `json:"subStatus"`
 	FailureContext  string         `json:"failureContext"`
 	Attempt         int            `json:"attempt"`
+	CeleryTaskID    string         `json:"celeryTaskId"`
+	WorkerID        string         `json:"workerId"`
+	HeartbeatAt     string         `json:"heartbeatAt,omitempty"`
+	LeaseExpiresAt  string         `json:"leaseExpiresAt,omitempty"`
+	CancelRequested bool           `json:"cancelRequested"`
+	CancelledAt     string         `json:"cancelledAt,omitempty"`
+	StartedAt       string         `json:"startedAt,omitempty"`
+	CompletedAt     string         `json:"completedAt,omitempty"`
 	ResultData      map[string]any `json:"resultData"`
 	TotalSteps      int            `json:"totalSteps"`
 	CreatedAt       time.Time      `json:"createdAt"`

@@ -67,7 +67,20 @@ export type Domain = {
 export type BatchSnapshot = {
   batch: Batch
   executions: Array<{ id: string; status: string; snapshotPrompt: string }>
-  iterations: Array<{ id: string; status: string; iterationNumber: number }>
+  iterations: Array<{
+    id: string
+    status: string
+    iterationNumber: number
+    subStatus?: string
+    celeryTaskId?: string
+    workerId?: string
+    heartbeatAt?: string
+    leaseExpiresAt?: string
+    cancelRequested?: boolean
+    cancelledAt?: string
+    startedAt?: string
+    completedAt?: string
+  }>
   counts: Record<string, number>
   report?: Record<string, unknown>
 }
@@ -196,6 +209,7 @@ export const batchApi = {
       },
     ),
   snapshot: (batchId: string) => request<BatchSnapshot>(`/api/batches/${batchId}/snapshot`),
+  cancel: (batchId: string) => request<{ id: string }>(`/api/batches/${batchId}/cancel`, { method: 'POST' }),
 }
 
 export const api = {

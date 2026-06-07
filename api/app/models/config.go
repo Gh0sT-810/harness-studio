@@ -11,4 +11,6 @@ type Config struct {
 	BootstrapAdminEmail    string
 	BootstrapAdminPassword string
 	DisableAuth            bool
+	ExecutionAPIBaseURL    string
+	ExecutionDispatchTTL   int
 }

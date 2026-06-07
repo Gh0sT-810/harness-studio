@@ -34,12 +34,30 @@ export function applyBatchEvent(state: LiveBatchState, event: BatchEventEnvelope
     }
   }
 
-  if ((event.type === 'iteration.started' || event.type === 'iteration.completed') && event.iteration_id) {
+  if ([
+    'iteration.enqueued',
+    'iteration.started',
+    'iteration.completed',
+    'iteration.cancelled',
+    'iteration.lease_expired',
+  ].includes(event.type) && event.iteration_id) {
     const status = typeof event.payload.status === 'string' ? event.payload.status : undefined
+    const subStatus = typeof event.payload.sub_status === 'string' ? event.payload.sub_status : undefined
+    const workerId = typeof event.payload.worker_id === 'string' ? event.payload.worker_id : undefined
+    const celeryTaskId = typeof event.payload.celery_task_id === 'string' ? event.payload.celery_task_id : undefined
     return {
       ...state,
       iterations: state.iterations.map((iteration) =>
-        iteration.id === event.iteration_id && status ? { ...iteration, status } : iteration,
+        iteration.id === event.iteration_id
+          ? {
+              ...iteration,
+              ...(status ? { status } : {}),
+              ...(subStatus ? { subStatus } : {}),
+              ...(workerId ? { workerId } : {}),
+              ...(celeryTaskId ? { celeryTaskId } : {}),
+              ...(event.type === 'iteration.cancelled' ? { cancelRequested: true } : {}),
+            }
+          : iteration,
       ),
       recentEvents,
     }
