@@ -80,9 +80,21 @@ export type BatchSnapshot = {
     cancelledAt?: string
     startedAt?: string
     completedAt?: string
+    timelineArtifactId?: string
+    artifacts?: ArtifactSummary[]
   }>
   counts: Record<string, number>
   report?: Record<string, unknown>
+}
+
+export type ArtifactSummary = {
+  artifactId: string
+  artifactType: string
+  scope: string
+  filename?: string
+  iterationId?: string
+  executionId?: string
+  timelineStepIndex?: number
 }
 
 export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''

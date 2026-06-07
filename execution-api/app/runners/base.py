@@ -15,6 +15,8 @@ class RunnerResult:
     verification_details: dict
     verification_comments: str
     steps: list[RunnerStep] = field(default_factory=list)
+    artifacts: list[dict] = field(default_factory=list)
+    timeline_artifact_id: str = ""
 
 
 class IterationRunner(Protocol):

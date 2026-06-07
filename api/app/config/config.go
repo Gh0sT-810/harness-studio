@@ -26,6 +26,8 @@ func LoadConfig() (*models.Config, error) {
 		DisableAuth:            envBool("DISABLE_AUTH", false),
 		ExecutionAPIBaseURL:    env("EXECUTION_API_BASE_URL", "http://localhost:8090"),
 		ExecutionDispatchTTL:   envInt("EXECUTION_DISPATCH_TIMEOUT_SECONDS", 5),
+		ArtifactServiceBaseURL: env("ARTIFACT_SERVICE_BASE_URL", "http://localhost:8091"),
+		ArtifactServiceTTL:     envInt("ARTIFACT_SERVICE_TIMEOUT_SECONDS", 10),
 	}, nil
 }
 

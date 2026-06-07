@@ -16,6 +16,9 @@ api/*.test
 __pycache__/
 **/__pycache__/
 
+# Runtime data
+data/artifacts/
+
 # Local tooling
 .idea/
 .vscode/

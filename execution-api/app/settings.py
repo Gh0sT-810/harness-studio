@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     lease_seconds: int = 60
     heartbeat_seconds: int = 5
     max_attempts: int = 2
+    artifact_service_base_url: str = "http://localhost:8091"
+    artifact_service_timeout_seconds: int = 10
+    capture_timeout_seconds: int = 20
+    screenshot_format: str = "png"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

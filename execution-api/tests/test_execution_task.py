@@ -15,6 +15,15 @@ class FakeRepository:
             "attempt": 1,
         }
 
+    def get_iteration(self, iteration_id):
+        return {
+            "id": iteration_id,
+            "execution_id": "execution-1",
+            "batch_id": "batch-1",
+            "gym_base_url": "https://example.com",
+            "snapshot_prompt": "Do the thing",
+        }
+
     def heartbeat(self, iteration_id, worker_id, lease_seconds):
         self.heartbeats.append((iteration_id, worker_id, lease_seconds))
         return True

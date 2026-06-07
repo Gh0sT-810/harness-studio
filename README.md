@@ -1,6 +1,6 @@
 # Harness Studio
 
-Phase 4 establishes the self-hosted harness foundation, core metadata model, and the first execution pipeline:
+Phase 5 establishes the self-hosted harness foundation, core metadata model, execution pipeline, artifact service, and Live Monitor:
 
 - React + TypeScript frontend shell
 - Go public/control API with `GET /health`
@@ -10,6 +10,9 @@ Phase 4 establishes the self-hosted harness foundation, core metadata model, and
 - Server-level Caddy/Nginx examples outside the app compose
 - Auth/RBAC bootstrap, catalog metadata, batch metadata, execution snapshots, and batch snapshot reads
 - Python execution-api, Celery dispatch, execution worker, maintenance worker, heartbeat/lease recovery, and deterministic local runner
+- Internal artifact-service over local disk and Postgres metadata
+- Playwright screenshot/timeline/log artifact capture
+- Live Monitor playback from timeline artifacts and SSE events
 
 The implementation follows the rules in `.cursor/rules`.
 
@@ -23,7 +26,8 @@ The implementation follows the rules in `.cursor/rules`.
 - Python `execution-api` owns Celery task names, routing, dispatch, cancellation, and worker contracts.
 - `worker-execution` claims and runs one iteration at a time with `concurrency=1` and `max-tasks-per-child=1`.
 - `worker-maintenance` recovers expired leases and re-enqueues retryable iterations.
-- Artifact service, report service, full provider adapters, and Studio/QC workflows are later phases.
+- `artifact-service` owns local artifact files and metadata; Go proxies public artifact APIs.
+- Report service, full provider adapters, and Studio/QC workflows are later phases.
 
 ## Local Setup
 
@@ -38,6 +42,7 @@ Default local endpoints:
 - Frontend: `http://localhost:3000`
 - Go API health: `http://localhost:8080/health`
 - Execution API health: `http://localhost:8090/internal/health`
+- Artifact service health: `http://localhost:8091/internal/health`
 
 Default local admin:
 
@@ -56,6 +61,7 @@ make api-build
 make api-test
 make api-vet
 make execution-api-test
+make artifact-service-test
 make frontend-lint
 make frontend-build
 make frontend-e2e
@@ -79,6 +85,24 @@ docker compose up --build
 ```
 
 Then create a batch from `http://localhost:3000/batches` and open its run page. The iteration should transition from `pending` to `executing` to `passed` without frontend polling loops.
+
+## Phase 5 Artifact And Live Monitor Smoke
+
+Phase 5 stores worker artifacts under `./data/artifacts` through the internal `artifact-service`; the frontend never reads local paths directly.
+
+Expected per-iteration scope:
+
+```text
+iterations/{iterationId}/
+  screenshots/
+  logs/
+  conversation/
+  task_responses/
+  timeline/
+  verification/
+```
+
+Creating a batch against a reachable gym URL should produce screenshots, `action_timeline.json`, logs, conversation, response, and verification artifacts. Open the batch run page and choose `Open Live Monitor` on an iteration to replay the captured timeline and browse files.
 
 ## Volumes
 

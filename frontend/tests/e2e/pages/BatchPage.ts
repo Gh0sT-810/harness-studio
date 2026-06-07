@@ -12,6 +12,10 @@ export class BatchPage extends BasePage {
   readonly batchesSearch: Locator
   readonly snapshotPage: Locator
   readonly snapshotBackToBatches: Locator
+  readonly liveMonitor: Locator
+  readonly liveMonitorTimeline: Locator
+  readonly liveMonitorBrowser: Locator
+  readonly liveMonitorFiles: Locator
 
   constructor(page: Page) {
     super(page)
@@ -24,6 +28,10 @@ export class BatchPage extends BasePage {
     this.batchesSearch = this.byDataId('batches-search')
     this.snapshotPage = this.byDataId('batch-snapshot-page')
     this.snapshotBackToBatches = this.byDataId('snapshot-back-to-batches')
+    this.liveMonitor = this.byDataId('live-monitor')
+    this.liveMonitorTimeline = this.byDataId('live-monitor-timeline')
+    this.liveMonitorBrowser = this.byDataId('live-monitor-browser')
+    this.liveMonitorFiles = this.byDataId('live-monitor-files')
   }
 
   batchCard(id: string) {
@@ -36,5 +44,9 @@ export class BatchPage extends BasePage {
 
   snapshotIteration(id: string) {
     return this.byDataId(`snapshot-iteration-${id}`)
+  }
+
+  openLiveMonitor(id: string) {
+    return this.byDataId(`open-live-monitor-${id}`)
   }
 }

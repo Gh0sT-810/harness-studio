@@ -692,6 +692,7 @@ SELECT iterations.id::text, iterations.execution_id::text, iterations.iteration_
        COALESCE(iterations.heartbeat_at::text, ''), COALESCE(iterations.lease_expires_at::text, ''),
        COALESCE(iterations.cancel_requested, false), COALESCE(iterations.cancelled_at::text, ''),
        COALESCE(iterations.started_at::text, ''), COALESCE(iterations.completed_at::text, ''),
+       COALESCE(iterations.timeline_artifact_id::text, ''),
        iterations.result_data,
        iterations.total_steps, iterations.created_at
 FROM execution.iterations
@@ -723,6 +724,7 @@ ORDER BY executions.created_at, iterations.iteration_number
 			&iteration.CancelledAt,
 			&iteration.StartedAt,
 			&iteration.CompletedAt,
+			&iteration.TimelineArtifactID,
 			&resultData,
 			&iteration.TotalSteps,
 			&iteration.CreatedAt,

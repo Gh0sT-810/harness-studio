@@ -150,6 +150,90 @@ paths:
             text/event-stream:
               schema:
                 type: string
+  /api/artifacts/{id}:
+    get:
+      summary: Download an artifact by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact bytes proxied from artifact-service
+  /api/artifacts/{id}/metadata:
+    get:
+      summary: Get artifact metadata by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact metadata
+  /api/iterations/{id}/files:
+    get:
+      summary: List files captured for an iteration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Artifact metadata list
+  /api/iterations/{id}/timeline:
+    get:
+      summary: List iteration artifacts used to locate the timeline artifact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Iteration-scoped artifact metadata list
+  /api/iterations/{id}/screenshot:
+    get:
+      summary: List iteration artifacts used to locate screenshots
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Iteration-scoped artifact metadata list
+  /api/batches/{id}/archive:
+    get:
+      summary: Download a ZIP archive of batch-scoped artifacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ZIP archive proxied from artifact-service
 components:
   securitySchemes:
     bearerAuth:

@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
+import { LiveMonitor } from '@/components/live-monitor/LiveMonitor'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +15,7 @@ import { applyBatchEvent, createLiveBatchState, LiveBatchState } from '@/lib/liv
 export function BatchSnapshotPage() {
   const { id } = useParams()
   const [liveState, setLiveState] = useState<LiveBatchState | null>(null)
+  const [monitorIterationId, setMonitorIterationId] = useState('')
   const snapshotQuery = useQuery({
     queryKey: ['batch-snapshot', id],
     queryFn: () => batchApi.snapshot(id ?? ''),
@@ -34,6 +36,7 @@ export function BatchSnapshotPage() {
 
   const { connectionState, latestEventId } = useBatchEvents(id, handleEvent, handleFallback)
   const snapshot = liveState ?? (snapshotQuery.data ? createLiveBatchState(snapshotQuery.data) : null)
+  const monitorIteration = snapshot?.iterations.find((iteration) => iteration.id === monitorIterationId)
   const progress = useMemo(() => {
     if (!snapshot?.counts.total) return 0
     const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0) + (snapshot.counts.cancelled ?? 0)
@@ -136,12 +139,16 @@ export function BatchSnapshotPage() {
             {snapshot.iterations.map((iteration) => (
               <div data-id={`snapshot-iteration-${iteration.id}`} className="harness-card-base flex items-center justify-between p-4" key={iteration.id}>
                 <span>Iteration {iteration.iterationNumber}</span>
-                <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
+                <div className="flex items-center gap-2">
+                  <button data-id={`open-live-monitor-${iteration.id}`} className="harness-button-secondary" type="button" onClick={() => setMonitorIterationId(iteration.id)}>Open Live Monitor</button>
+                  <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
+                </div>
               </div>
             ))}
           </section>
         </aside>
       </section>
+      {monitorIteration ? <LiveMonitor iteration={monitorIteration} onClose={() => setMonitorIterationId('')} /> : null}
     </div>
   )
 }

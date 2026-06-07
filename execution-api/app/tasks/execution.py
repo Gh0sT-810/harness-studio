@@ -1,7 +1,7 @@
 from app.celery_app import celery_app
 from app.events import RedisEventPublisher
 from app.repositories.iterations import PostgresIterationRepository
-from app.runners.local import LocalDeterministicRunner
+from app.runners.playwright_capture import PlaywrightCaptureRunner
 from app.settings import get_settings
 
 
@@ -16,16 +16,32 @@ def execute_iteration(
     settings = get_settings()
     repository = repository or PostgresIterationRepository()
     event_publisher = event_publisher or RedisEventPublisher()
-    runner = runner or LocalDeterministicRunner()
+    runner = runner or PlaywrightCaptureRunner()
     worker_id = worker_id or settings.worker_id
     lease_seconds = lease_seconds or settings.lease_seconds
 
     iteration = repository.claim_iteration(iteration_id, worker_id, lease_seconds)
     if iteration is None:
         return {"id": iteration_id, "status": "not_claimed"}
+    iteration = {**repository.get_iteration(iteration_id), **iteration}
 
     event_publisher.publish_iteration_event("iteration.started", iteration, {"status": "executing"})
     result = runner.run(iteration)
+    if result.timeline_artifact_id and hasattr(repository, "set_timeline_artifact"):
+        repository.set_timeline_artifact(iteration_id, result.timeline_artifact_id)
+    for artifact in result.artifacts:
+        event_publisher.publish_iteration_event(
+            "artifact.created",
+            iteration,
+            {
+                "artifactId": artifact["id"],
+                "artifactType": artifact["artifactType"],
+                "scope": artifact["scope"],
+                "filename": artifact.get("metadata", {}).get("filename", ""),
+                "iterationId": iteration_id,
+                "executionId": iteration.get("execution_id", ""),
+            },
+        )
 
     for step in result.steps:
         repository.heartbeat(iteration_id, worker_id, lease_seconds)

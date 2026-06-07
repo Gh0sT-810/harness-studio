@@ -28,9 +28,11 @@ class PostgresIterationRepository:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT iterations.id::text, executions.id::text, executions.batch_id::text, iterations.status
+                    SELECT iterations.id::text, executions.id::text, executions.batch_id::text, iterations.status,
+                           gyms.base_url, executions.snapshot_prompt, executions.snapshot_task_id
                     FROM execution.iterations
                     JOIN execution.executions ON executions.id = iterations.execution_id
+                    JOIN catalog.gyms ON gyms.id = executions.gym_id
                     WHERE iterations.id = %s
                     """,
                     (iteration_id,),
@@ -38,7 +40,15 @@ class PostgresIterationRepository:
                 row = cursor.fetchone()
                 if row is None:
                     return {"id": iteration_id, "batch_id": "", "status": "not_found"}
-                return {"id": row[0], "execution_id": row[1], "batch_id": row[2], "status": row[3]}
+                return {
+                    "id": row[0],
+                    "execution_id": row[1],
+                    "batch_id": row[2],
+                    "status": row[3],
+                    "gym_base_url": row[4],
+                    "snapshot_prompt": row[5],
+                    "snapshot_task_id": row[6],
+                }
 
     def claim_iteration(self, iteration_id: str, worker_id: str, lease_seconds: int) -> dict | None:
         with connect() as connection:
@@ -125,6 +135,18 @@ class PostgresIterationRepository:
                 if row is None:
                     return {"id": iteration_id, "status": "not_found"}
                 return {"id": row[0], "status": row[1]}
+
+    def set_timeline_artifact(self, iteration_id: str, artifact_id: str) -> None:
+        with connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE execution.iterations
+                    SET timeline_artifact_id = %s
+                    WHERE id = %s
+                    """,
+                    (artifact_id, iteration_id),
+                )
 
     def recover_expired_leases(self, max_attempts: int) -> list[dict]:
         with connect() as connection:

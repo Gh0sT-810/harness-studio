@@ -12,6 +12,7 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	authController := controllers.NewAuthController(serviceContainer.GetAuthService())
 	catalogController := controllers.NewCatalogController(serviceContainer.GetCatalogService())
 	batchController := controllers.NewBatchController(serviceContainer.GetExecutionService(), serviceContainer.GetEventService())
+	artifactController := controllers.NewArtifactController(serviceContainer.GetArtifactProxy())
 
 	router.GET("/", healthController.GetRoot)
 	router.GET("/health", healthController.GetHealth)
@@ -44,6 +45,12 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	authed.POST("/batches/:id/cancel", batchController.CancelBatch)
 	authed.GET("/batches/:id/snapshot", batchController.GetBatchSnapshot)
 	authed.GET("/batches/:id/events", batchController.StreamBatchEvents)
+	authed.GET("/artifacts/:id", artifactController.GetArtifact)
+	authed.GET("/artifacts/:id/metadata", artifactController.GetArtifactMetadata)
+	authed.GET("/iterations/:id/files", artifactController.ListIterationFiles)
+	authed.GET("/iterations/:id/timeline", artifactController.GetIterationTimeline)
+	authed.GET("/iterations/:id/screenshot", artifactController.GetIterationScreenshot)
+	authed.GET("/batches/:id/archive", artifactController.GetBatchArchive)
 
 	admin := authed.Group("")
 	admin.Use(middleware.RequireAdmin())

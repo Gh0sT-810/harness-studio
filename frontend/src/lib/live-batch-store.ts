@@ -63,6 +63,38 @@ export function applyBatchEvent(state: LiveBatchState, event: BatchEventEnvelope
     }
   }
 
+  if (event.type === 'artifact.created' && event.iteration_id) {
+    const artifactId = typeof event.payload.artifactId === 'string' ? event.payload.artifactId : undefined
+    const artifactType = typeof event.payload.artifactType === 'string' ? event.payload.artifactType : undefined
+    const scope = typeof event.payload.scope === 'string' ? event.payload.scope : undefined
+    if (artifactId && artifactType && scope) {
+      return {
+        ...state,
+        iterations: state.iterations.map((iteration) =>
+          iteration.id === event.iteration_id
+            ? {
+                ...iteration,
+                timelineArtifactId: artifactType === 'timeline' ? artifactId : iteration.timelineArtifactId,
+                artifacts: [
+                  ...(iteration.artifacts ?? []),
+                  {
+                    artifactId,
+                    artifactType,
+                    scope,
+                    filename: typeof event.payload.filename === 'string' ? event.payload.filename : undefined,
+                    iterationId: typeof event.payload.iterationId === 'string' ? event.payload.iterationId : undefined,
+                    executionId: typeof event.payload.executionId === 'string' ? event.payload.executionId : undefined,
+                    timelineStepIndex: typeof event.payload.timelineStepIndex === 'number' ? event.payload.timelineStepIndex : undefined,
+                  },
+                ],
+              }
+            : iteration,
+        ),
+        recentEvents,
+      }
+    }
+  }
+
   if (event.type === 'report.ready') {
     return { ...state, report: { ...state.report, status: 'ready', ...event.payload }, recentEvents }
   }

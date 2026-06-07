@@ -8,15 +8,17 @@ type ServiceContainer struct {
 	catalogService   services.CatalogServiceInterface
 	executionService services.ExecutionServiceInterface
 	eventService     services.EventServiceInterface
+	artifactProxy    services.ArtifactProxyInterface
 }
 
-func NewContainer(postgres services.DependencyPinger, redis services.DependencyPinger, auth services.AuthServiceInterface, catalog services.CatalogServiceInterface, execution services.ExecutionServiceInterface, event services.EventServiceInterface) *ServiceContainer {
+func NewContainer(postgres services.DependencyPinger, redis services.DependencyPinger, auth services.AuthServiceInterface, catalog services.CatalogServiceInterface, execution services.ExecutionServiceInterface, event services.EventServiceInterface, artifact services.ArtifactProxyInterface) *ServiceContainer {
 	return &ServiceContainer{
 		healthService:    services.NewHealthService(postgres, redis),
 		authService:      auth,
 		catalogService:   catalog,
 		executionService: execution,
 		eventService:     event,
+		artifactProxy:    artifact,
 	}
 }
 
@@ -38,4 +40,8 @@ func (c *ServiceContainer) GetExecutionService() services.ExecutionServiceInterf
 
 func (c *ServiceContainer) GetEventService() services.EventServiceInterface {
 	return c.eventService
+}
+
+func (c *ServiceContainer) GetArtifactProxy() services.ArtifactProxyInterface {
+	return c.artifactProxy
 }

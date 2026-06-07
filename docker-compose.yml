@@ -46,6 +46,8 @@ services:
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
     ports:
       - "${EXECUTION_API_PORT:-8090}:8090"
     depends_on:
@@ -53,8 +55,34 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      artifact-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/internal/health').read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harness
+
+  artifact-service:
+    build:
+      context: ./artifact-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://harness:harness_dev_password@postgres:5432/harness?sslmode=disable}
+      ARTIFACT_ROOT: ${ARTIFACT_ROOT:-/data/artifacts}
+      ARCHIVE_MAX_FILES: ${ARCHIVE_MAX_FILES:-1000}
+    volumes:
+      - ./data/artifacts:/data/artifacts
+    ports:
+      - "${ARTIFACT_SERVICE_PORT:-8091}:8091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/internal/health').read()\""]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -80,6 +108,8 @@ services:
       DISABLE_AUTH: ${DISABLE_AUTH:-false}
       EXECUTION_API_BASE_URL: ${EXECUTION_API_BASE_URL:-http://execution-api:8090}
       EXECUTION_DISPATCH_TIMEOUT_SECONDS: ${EXECUTION_DISPATCH_TIMEOUT_SECONDS:-5}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -88,6 +118,8 @@ services:
       redis:
         condition: service_healthy
       execution-api:
+        condition: service_healthy
+      artifact-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
@@ -101,6 +133,7 @@ services:
   worker-execution:
     build:
       context: ./execution-api
+      dockerfile: Dockerfile.execution
     restart: unless-stopped
     command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--queues=execution", "--pool=prefork", "--concurrency=1", "--max-tasks-per-child=1"]
     environment:
@@ -114,10 +147,14 @@ services:
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      artifact-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from app.celery_app import celery_app; raise SystemExit(0 if celery_app else 1)\""]
@@ -144,6 +181,8 @@ services:
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
     depends_on:
       postgres:
         condition: service_healthy

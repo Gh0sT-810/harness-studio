@@ -13,4 +13,6 @@ type Config struct {
 	DisableAuth            bool
 	ExecutionAPIBaseURL    string
 	ExecutionDispatchTTL   int
+	ArtifactServiceBaseURL string
+	ArtifactServiceTTL     int
 }
