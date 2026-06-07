@@ -23,7 +23,12 @@ test.describe('Batch Snapshot', () => {
 
     await page.goto('/batches/b1/runs')
     await expect(batchPage.snapshotPage).toBeVisible()
+    await expect(page.locator('[data-id="event-connection-state"]')).toBeVisible()
+    await expect(page.locator('[data-id="snapshot-reload-button"]')).toBeVisible()
     await expect(page.locator('[data-id="snapshot-count-total"]')).toBeVisible()
+    await expect(page.locator('[data-id="failure-diagnostics-panel"]')).toBeVisible()
+    await expect(page.locator('[data-id="batch-insights-tabs"]')).toBeVisible()
+    await expect(page.locator('[data-id="event-stream-panel"]')).toBeVisible()
     await expect(batchPage.snapshotExecution('e1')).toBeVisible()
     await expect(batchPage.snapshotIteration('i1')).toBeVisible()
   })

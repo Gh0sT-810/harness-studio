@@ -17,9 +17,12 @@ func RequireAuth(authService services.AuthServiceInterface) gin.HandlerFunc {
 		header := c.GetHeader("Authorization")
 		token := strings.TrimPrefix(header, "Bearer ")
 		if token == "" || token == header {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "missing bearer token")
-			c.Abort()
-			return
+			token = c.Query("access_token")
+			if token == "" {
+				utils.ErrorResponse(c, http.StatusUnauthorized, "missing bearer token")
+				c.Abort()
+				return
+			}
 		}
 
 		user, err := authService.CurrentUser(c.Request.Context(), token)

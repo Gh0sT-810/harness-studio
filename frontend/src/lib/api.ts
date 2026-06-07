@@ -69,9 +69,10 @@ export type BatchSnapshot = {
   executions: Array<{ id: string; status: string; snapshotPrompt: string }>
   iterations: Array<{ id: string; status: string; iterationNumber: number }>
   counts: Record<string, number>
+  report?: Record<string, unknown>
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 let refreshInFlight: Promise<LoginResponse> | null = null
 
 export const tokenStore = {

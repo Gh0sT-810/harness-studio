@@ -11,7 +11,7 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	healthController := controllers.NewHealthController(serviceContainer.GetHealthService())
 	authController := controllers.NewAuthController(serviceContainer.GetAuthService())
 	catalogController := controllers.NewCatalogController(serviceContainer.GetCatalogService())
-	batchController := controllers.NewBatchController(serviceContainer.GetExecutionService())
+	batchController := controllers.NewBatchController(serviceContainer.GetExecutionService(), serviceContainer.GetEventService())
 
 	router.GET("/", healthController.GetRoot)
 	router.GET("/health", healthController.GetHealth)
@@ -42,6 +42,7 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	authed.GET("/batches", batchController.ListBatches)
 	authed.POST("/batches", batchController.CreateBatch)
 	authed.GET("/batches/:id/snapshot", batchController.GetBatchSnapshot)
+	authed.GET("/batches/:id/events", batchController.StreamBatchEvents)
 
 	admin := authed.Group("")
 	admin.Use(middleware.RequireAdmin())

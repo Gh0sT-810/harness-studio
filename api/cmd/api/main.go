@@ -54,7 +54,7 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Last-Event-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -66,8 +66,9 @@ func main() {
 		log.Fatalf("failed to bootstrap auth: %v", err)
 	}
 	catalogService := services.NewCatalogService(store)
-	executionService := services.NewExecutionService(store)
-	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService)
+	eventService := services.NewEventService(redisClient)
+	executionService := services.NewExecutionService(store, eventService)
+	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService)
 	routes.SetupRoutes(router, serviceContainer)
 
 	if err := router.Run(cfg.ServerAddress); err != nil {

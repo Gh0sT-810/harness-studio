@@ -113,6 +113,43 @@ paths:
       responses:
         "200":
           description: Batch, executions, iterations, counts, catalog metadata, and report placeholder
+  /api/batches/{id}/events:
+    get:
+      summary: Stream batch events through Server-Sent Events
+      description: >
+        Streams Redis Stream-backed batch events. Clients should reconnect with Last-Event-ID
+        and reload the snapshot if a gap or snapshot.required event is observed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: last_event_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: access_token
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE stream of BatchEventEnvelope payloads
+          content:
+            text/event-stream:
+              schema:
+                type: string
 components:
   securitySchemes:
     bearerAuth:
@@ -139,3 +176,44 @@ components:
         statusCode:
           type: integer
         data: {}
+    BatchEventEnvelope:
+      type: object
+      required: [version, type, id, batch_id, occurred_at, payload]
+      properties:
+        version:
+          type: string
+          example: v1
+        type:
+          type: string
+          enum:
+            - batch.created
+            - batch.summary_updated
+            - user.action
+            - snapshot.required
+            - iteration.started
+            - iteration.step_added
+            - artifact.created
+            - iteration.completed
+            - execution.updated
+            - report.ready
+            - iteration.lease_expired
+        id:
+          type: string
+        batch_id:
+          type: string
+          format: uuid
+        execution_id:
+          type: string
+          format: uuid
+        iteration_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+        sequence:
+          type: string
+          description: Redis Stream ID used as SSE id
+        payload:
+          type: object
+          additionalProperties: true

@@ -53,6 +53,7 @@ export async function mockPhase2Api(page: Page) {
           executions: [{ id: 'e1', status: 'pending', snapshotPrompt: mockTask.prompt }],
           iterations: [{ id: 'i1', executionId: 'e1', status: 'pending', iterationNumber: 1 }],
           counts: { total: 1, pending: 1 },
+          report: { status: 'not_configured' },
         },
         'snapshot',
       ),
