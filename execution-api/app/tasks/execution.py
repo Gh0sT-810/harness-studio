@@ -26,7 +26,30 @@ def execute_iteration(
     iteration = {**repository.get_iteration(iteration_id), **iteration}
 
     event_publisher.publish_iteration_event("iteration.started", iteration, {"status": "executing"})
-    result = runner.run(iteration)
+    try:
+        result = runner.run(iteration)
+    except Exception as exc:
+        completed = repository.complete_iteration(
+            iteration_id,
+            worker_id,
+            "failed",
+            {"error": str(exc), "runner": runner.__class__.__name__},
+            {"status": "failed", "error": str(exc)},
+            str(exc),
+            0,
+        )
+        event_publisher.publish_iteration_event("iteration.completed", iteration, {"status": completed["status"]})
+        event_publisher.publish_batch_event(
+            "execution.updated",
+            iteration["batch_id"],
+            {"execution_id": iteration["execution_id"], "status": completed["status"]},
+        )
+        event_publisher.publish_batch_event(
+            "batch.summary_updated",
+            iteration["batch_id"],
+            {"counts": repository.batch_counts(iteration["batch_id"])},
+        )
+        return completed
     if result.timeline_artifact_id and hasattr(repository, "set_timeline_artifact"):
         repository.set_timeline_artifact(iteration_id, result.timeline_artifact_id)
     for artifact in result.artifacts:

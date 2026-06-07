@@ -194,7 +194,7 @@ paths:
           description: Artifact metadata list
   /api/iterations/{id}/timeline:
     get:
-      summary: List iteration artifacts used to locate the timeline artifact
+      summary: Download the iteration action timeline document
       security:
         - bearerAuth: []
       parameters:
@@ -205,10 +205,16 @@ paths:
             type: string
       responses:
         "200":
-          description: Iteration-scoped artifact metadata list
+          description: Timeline JSON document proxied from the iteration timeline artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineDocument"
+        "404":
+          description: No timeline artifact exists for this iteration
   /api/iterations/{id}/screenshot:
     get:
-      summary: List iteration artifacts used to locate screenshots
+      summary: Download an iteration screenshot
       security:
         - bearerAuth: []
       parameters:
@@ -217,12 +223,21 @@ paths:
           required: true
           schema:
             type: string
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [before, after]
+            default: after
       responses:
         "200":
-          description: Iteration-scoped artifact metadata list
+          description: Screenshot bytes proxied from artifact-service
+        "404":
+          description: No screenshot artifact exists for this iteration
   /api/batches/{id}/archive:
     get:
-      summary: Download a ZIP archive of batch-scoped artifacts
+      summary: Download a ZIP archive of artifacts created by iterations in the batch
       security:
         - bearerAuth: []
       parameters:
@@ -234,6 +249,8 @@ paths:
       responses:
         "200":
           description: ZIP archive proxied from artifact-service
+        "404":
+          description: Batch artifacts were not found
 components:
   securitySchemes:
     bearerAuth:
@@ -260,6 +277,36 @@ components:
         statusCode:
           type: integer
         data: {}
+    TimelineStep:
+      type: object
+      properties:
+        id:
+          type: string
+        index:
+          type: integer
+        type:
+          type: string
+        message:
+          type: string
+        url:
+          type: string
+        title:
+          type: string
+        beforeArtifactId:
+          type: string
+        afterArtifactId:
+          type: string
+    TimelineDocument:
+      type: object
+      properties:
+        version:
+          type: string
+        iterationId:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineStep"
     BatchEventEnvelope:
       type: object
       required: [version, type, id, batch_id, occurred_at, payload]

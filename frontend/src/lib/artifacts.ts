@@ -45,13 +45,7 @@ export const artifactApi = {
   },
   timeline: async (iterationId: string) => {
     const response = await authedFetch(`/api/iterations/${iterationId}/timeline`)
-    const artifacts = (await response.json()) as ArtifactMetadata[]
-    const timelineArtifact = artifacts.find((artifact) => artifact.artifactType === 'timeline')
-    if (!timelineArtifact) {
-      return { version: 'v1', iterationId, steps: [] } satisfies TimelineDocument
-    }
-    const timelineResponse = await authedFetch(`/api/artifacts/${timelineArtifact.id}`)
-    return timelineResponse.json() as Promise<TimelineDocument>
+    return response.json() as Promise<TimelineDocument>
   },
   objectUrl: async (artifactId: string) => {
     const response = await authedFetch(`/api/artifacts/${artifactId}`)

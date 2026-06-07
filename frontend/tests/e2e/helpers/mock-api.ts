@@ -105,9 +105,6 @@ export async function mockPhase2Api(page: Page) {
     await route.fulfill({ json: artifacts })
   })
   await page.route('**/api/iterations/i1/timeline', async (route) => {
-    await route.fulfill({ json: artifacts })
-  })
-  await page.route('**/api/artifacts/timeline-1', async (route) => {
     await route.fulfill({
       json: {
         version: 'v1',

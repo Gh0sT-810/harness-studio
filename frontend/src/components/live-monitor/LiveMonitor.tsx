@@ -36,6 +36,8 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
   }, [isPlaying, selectedIndex, speed, steps.length])
 
   const files = useMemo(() => filesQuery.data ?? [], [filesQuery.data])
+  const timelineError = timelineQuery.isError ? 'Timeline artifact is unavailable.' : ''
+  const filesError = filesQuery.isError ? 'Artifact file list is unavailable.' : ''
 
   return (
     <div data-id="live-monitor" className="fixed inset-4 z-50 overflow-auto rounded-2xl border border-[var(--border)] bg-[var(--background)] p-4 shadow-2xl">
@@ -50,6 +52,8 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
         </div>
       </div>
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)_320px]">
+        {timelineError ? <p data-id="live-monitor-timeline-error" className="harness-subtitle xl:col-span-3">{timelineError}</p> : null}
+        {filesError ? <p data-id="live-monitor-files-error" className="harness-subtitle xl:col-span-3">{filesError}</p> : null}
         <TimelinePane
           steps={steps}
           selectedIndex={effectiveSelectedIndex}

@@ -51,6 +51,20 @@ class ArtifactMetadataRepository:
                 )
                 return [artifact_from_row(row) for row in cursor.fetchall()]
 
+    def list_by_batch(self, batch_id: str) -> list[dict]:
+        with connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id::text, scope, artifact_type, object_key, size_bytes, content_hash, metadata, created_at
+                    FROM artifacts.artifacts
+                    WHERE metadata->>'batchId' = %s
+                    ORDER BY scope, created_at
+                    """,
+                    (batch_id,),
+                )
+                return [artifact_from_row(row) for row in cursor.fetchall()]
+
     def get(self, artifact_id: str) -> dict:
         with connect() as connection:
             with connection.cursor() as cursor:

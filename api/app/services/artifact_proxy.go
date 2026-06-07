@@ -10,11 +10,20 @@ import (
 	"time"
 )
 
+type ArtifactProxyError struct {
+	StatusCode int
+}
+
+func (e ArtifactProxyError) Error() string {
+	return fmt.Sprintf("artifact-service returned status %d", e.StatusCode)
+}
+
 type ArtifactProxyInterface interface {
 	ListScope(ctx context.Context, scope string) ([]byte, string, error)
 	GetArtifact(ctx context.Context, artifactID string) ([]byte, string, error)
 	GetArtifactMetadata(ctx context.Context, artifactID string) ([]byte, string, error)
 	ArchiveScope(ctx context.Context, scope string) ([]byte, string, error)
+	ArchiveBatch(ctx context.Context, batchID string) ([]byte, string, error)
 }
 
 type HTTPArtifactProxy struct {
@@ -43,6 +52,10 @@ func (p *HTTPArtifactProxy) ArchiveScope(ctx context.Context, scope string) ([]b
 	return p.get(ctx, "/internal/scopes/"+escaped+"/archive")
 }
 
+func (p *HTTPArtifactProxy) ArchiveBatch(ctx context.Context, batchID string) ([]byte, string, error) {
+	return p.get(ctx, "/internal/batches/"+url.PathEscape(batchID)+"/archive")
+}
+
 func (p *HTTPArtifactProxy) get(ctx context.Context, path string) ([]byte, string, error) {
 	if p.baseURL == "" {
 		return nil, "", fmt.Errorf("artifact service base URL is not configured")
@@ -61,7 +74,7 @@ func (p *HTTPArtifactProxy) get(ctx context.Context, path string) ([]byte, strin
 		return nil, "", fmt.Errorf("read artifact-service response: %w", err)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, "", fmt.Errorf("artifact-service returned status %d", resp.StatusCode)
+		return nil, "", ArtifactProxyError{StatusCode: resp.StatusCode}
 	}
 	return body, resp.Header.Get("Content-Type"), nil
 }

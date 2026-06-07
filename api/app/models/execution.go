@@ -60,6 +60,7 @@ type Iteration struct {
 	TimelineArtifactID string         `json:"timelineArtifactId,omitempty"`
 	ResultData         map[string]any `json:"resultData"`
 	TotalSteps         int            `json:"totalSteps"`
+	Artifacts          []Artifact     `json:"artifacts,omitempty"`
 	CreatedAt          time.Time      `json:"createdAt"`
 }
 

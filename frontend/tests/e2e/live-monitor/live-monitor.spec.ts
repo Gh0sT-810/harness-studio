@@ -25,5 +25,6 @@ test.describe('Live Monitor', () => {
     await expect(page.locator('[data-id="live-monitor-play"]')).toBeVisible()
     await expect(page.locator('[data-id="live-monitor-speed-1"]')).toBeVisible()
     await expect(page.locator('[data-id="live-monitor-file-timeline-1"]')).toContainText('action_timeline.json')
+    await expect(page.locator('[data-id="live-monitor-screenshot"]')).toBeVisible()
   })
 })

@@ -104,6 +104,19 @@ iterations/{iterationId}/
 
 Creating a batch against a reachable gym URL should produce screenshots, `action_timeline.json`, logs, conversation, response, and verification artifacts. Open the batch run page and choose `Open Live Monitor` on an iteration to replay the captured timeline and browse files.
 
+Public artifact routes are exposed only through the Go API:
+
+```text
+GET /api/iterations/{id}/files       # artifact metadata list
+GET /api/iterations/{id}/timeline    # action_timeline.json document
+GET /api/iterations/{id}/screenshot  # screenshot bytes, defaults to kind=after
+GET /api/artifacts/{id}              # raw artifact bytes
+GET /api/artifacts/{id}/metadata     # artifact metadata
+GET /api/batches/{id}/archive        # ZIP of artifacts whose metadata.batchId matches the batch
+```
+
+The internal `artifact-service` owns writes, metadata, local path validation, and archive limits (`ARCHIVE_MAX_FILES`). Workers upload artifacts with `metadata.batchId`, `metadata.executionId`, and `metadata.iterationId` so the Go API can expose snapshots and batch archives without leaking local paths.
+
 ## Volumes
 
 The compose stack declares named volumes for Postgres and Redis:
@@ -111,4 +124,4 @@ The compose stack declares named volumes for Postgres and Redis:
 - `postgres-data`
 - `redis-data`
 
-Backups for PostgreSQL and future artifact storage should be handled separately.
+Backups for PostgreSQL and `./data/artifacts` should be handled separately.

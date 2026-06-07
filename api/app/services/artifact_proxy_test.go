@@ -48,14 +48,14 @@ func TestArtifactProxyDownloadsArtifact(t *testing.T) {
 
 func TestArtifactProxyStreamsArchive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/internal/scopes/batches/b1/archive", r.URL.Path)
+		assert.Equal(t, "/internal/batches/b1/archive", r.URL.Path)
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = io.WriteString(w, "zip")
 	}))
 	defer server.Close()
 
 	proxy := NewHTTPArtifactProxy(server.URL, time.Second)
-	body, contentType, err := proxy.ArchiveScope(context.Background(), "batches/b1")
+	body, contentType, err := proxy.ArchiveBatch(context.Background(), "b1")
 
 	require.NoError(t, err)
 	assert.Equal(t, "application/zip", contentType)

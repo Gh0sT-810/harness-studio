@@ -500,6 +500,11 @@ func (s *Store) GetBatchSnapshot(ctx context.Context, batchID string) (models.Ba
 	if err != nil {
 		return models.BatchSnapshot{}, err
 	}
+	artifacts, err := s.listArtifactsForIterations(ctx, iterations)
+	if err != nil {
+		return models.BatchSnapshot{}, err
+	}
+	attachArtifactsToIterations(iterations, artifacts)
 	gyms, tasks, modelsByID, err := s.snapshotCatalog(ctx, batchID)
 	if err != nil {
 		return models.BatchSnapshot{}, err
@@ -735,6 +740,47 @@ ORDER BY executions.created_at, iterations.iteration_number
 		iterations = append(iterations, iteration)
 	}
 	return iterations, rows.Err()
+}
+
+func (s *Store) listArtifactsForIterations(ctx context.Context, iterations []models.Iteration) ([]models.Artifact, error) {
+	if len(iterations) == 0 {
+		return nil, nil
+	}
+	scopes := make([]string, 0, len(iterations))
+	for _, iteration := range iterations {
+		scopes = append(scopes, "iterations/"+iteration.ID)
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT id::text, scope, artifact_type, object_key, size_bytes, content_hash, metadata, created_at::text
+FROM artifacts.artifacts
+WHERE scope = ANY($1)
+ORDER BY scope, created_at
+`, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("list iteration artifacts: %w", err)
+	}
+	defer rows.Close()
+	var artifacts []models.Artifact
+	for rows.Next() {
+		var artifact models.Artifact
+		var metadata []byte
+		if err := rows.Scan(&artifact.ID, &artifact.Scope, &artifact.ArtifactType, &artifact.ObjectKey, &artifact.SizeBytes, &artifact.ContentHash, &metadata, &artifact.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan iteration artifact: %w", err)
+		}
+		artifact.Metadata = mapFromJSON(metadata)
+		artifacts = append(artifacts, artifact)
+	}
+	return artifacts, rows.Err()
+}
+
+func attachArtifactsToIterations(iterations []models.Iteration, artifacts []models.Artifact) {
+	byScope := make(map[string][]models.Artifact, len(iterations))
+	for _, artifact := range artifacts {
+		byScope[artifact.Scope] = append(byScope[artifact.Scope], artifact)
+	}
+	for index := range iterations {
+		iterations[index].Artifacts = byScope["iterations/"+iterations[index].ID]
+	}
 }
 
 func (s *Store) snapshotCatalog(ctx context.Context, batchID string) (map[string]models.Gym, map[string]models.Task, map[string]models.ModelDefinition, error) {

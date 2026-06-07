@@ -72,3 +72,17 @@ def test_repository_lists_scope(monkeypatch):
 
     assert items[0]["artifactType"] == "timeline"
     assert cursor.executed[0][1] == ("iterations/i1",)
+
+
+def test_repository_lists_batch_artifacts_by_metadata(monkeypatch):
+    cursor = FakeCursor([
+        ("artifact-1", "iterations/i1", "timeline", "iterations/i1/timeline/action_timeline.json", 2, "hash", b'{"batchId":"b1"}', "2026-01-01T00:00:00Z")
+    ])
+    monkeypatch.setattr(repository, "connect", lambda: fake_connect(cursor))
+
+    items = ArtifactMetadataRepository().list_by_batch("b1")
+
+    sql, params = cursor.executed[0]
+    assert "metadata->>'batchId' = %s" in sql
+    assert params == ("b1",)
+    assert items[0]["scope"] == "iterations/i1"

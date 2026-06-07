@@ -6,6 +6,7 @@ class FakeRepository:
     def __init__(self):
         self.heartbeats = []
         self.completed = []
+        self.timeline_artifacts = []
 
     def claim_iteration(self, iteration_id, worker_id, lease_seconds):
         return {
@@ -32,6 +33,9 @@ class FakeRepository:
         self.completed.append((iteration_id, worker_id, status, result_data, verification_details, verification_comments, total_steps))
         return {"id": iteration_id, "status": status}
 
+    def set_timeline_artifact(self, iteration_id, artifact_id):
+        self.timeline_artifacts.append((iteration_id, artifact_id))
+
     def batch_counts(self, batch_id):
         return {"total": 1, "passed": 1}
 
@@ -48,6 +52,37 @@ class FakeRunner:
                 RunnerStep(message="verified result", payload={"step": 2}),
             ],
         )
+
+
+class FakeArtifactRunner:
+    def run(self, iteration):
+        return RunnerResult(
+            status="passed",
+            result_data={"runner": "artifact"},
+            verification_details={"strategy": "playwright_capture"},
+            verification_comments="captured",
+            steps=[RunnerStep(message="captured", payload={"step": 1})],
+            artifacts=[
+                {
+                    "id": "timeline-1",
+                    "scope": "iterations/iteration-1",
+                    "artifactType": "timeline",
+                    "metadata": {"filename": "action_timeline.json"},
+                },
+                {
+                    "id": "screenshot-1",
+                    "scope": "iterations/iteration-1",
+                    "artifactType": "screenshot",
+                    "metadata": {"filename": "after.png"},
+                },
+            ],
+            timeline_artifact_id="timeline-1",
+        )
+
+
+class FailingRunner:
+    def run(self, iteration):
+        raise RuntimeError("artifact upload failed")
 
 
 class FakeEvents:
@@ -101,3 +136,41 @@ def test_execute_iteration_runs_claimed_iteration_to_completion():
         ("execution.updated", "batch-1", {"execution_id": "execution-1", "status": "passed"}),
         ("batch.summary_updated", "batch-1", {"counts": {"total": 1, "passed": 1}}),
     ]
+
+
+def test_execute_iteration_persists_timeline_and_publishes_artifact_events():
+    repository = FakeRepository()
+    events = FakeEvents()
+
+    result = execute_iteration(
+        "iteration-1",
+        repository=repository,
+        event_publisher=events,
+        runner=FakeArtifactRunner(),
+        worker_id="worker-1",
+        lease_seconds=60,
+    )
+
+    assert result == {"id": "iteration-1", "status": "passed"}
+    assert repository.timeline_artifacts == [("iteration-1", "timeline-1")]
+    assert ("artifact.created", "iteration-1", {"artifactId": "timeline-1", "artifactType": "timeline", "scope": "iterations/iteration-1", "filename": "action_timeline.json", "iterationId": "iteration-1", "executionId": "execution-1"}) in events.iteration_events
+    assert ("artifact.created", "iteration-1", {"artifactId": "screenshot-1", "artifactType": "screenshot", "scope": "iterations/iteration-1", "filename": "after.png", "iterationId": "iteration-1", "executionId": "execution-1"}) in events.iteration_events
+
+
+def test_execute_iteration_records_failed_runner_as_failed_iteration():
+    repository = FakeRepository()
+    events = FakeEvents()
+
+    result = execute_iteration(
+        "iteration-1",
+        repository=repository,
+        event_publisher=events,
+        runner=FailingRunner(),
+        worker_id="worker-1",
+        lease_seconds=60,
+    )
+
+    assert result == {"id": "iteration-1", "status": "failed"}
+    assert repository.completed[-1][2] == "failed"
+    assert repository.completed[-1][3]["error"] == "artifact upload failed"
+    assert events.iteration_events[-1] == ("iteration.completed", "iteration-1", {"status": "failed"})

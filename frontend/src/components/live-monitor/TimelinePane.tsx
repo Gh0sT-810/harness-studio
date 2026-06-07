@@ -52,6 +52,7 @@ export function TimelinePane({
         ))}
       </div>
       <div className="grid gap-2">
+        {steps.length === 0 ? <p data-id="live-monitor-empty-timeline" className="harness-subtitle">No timeline steps captured yet.</p> : null}
         {steps.map((step, index) => (
           <button
             data-id={`live-monitor-step-${index}`}
