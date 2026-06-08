@@ -23,6 +23,19 @@ class FakeRepository:
             "batch_id": "batch-1",
             "gym_base_url": "https://example.com",
             "snapshot_prompt": "Do the thing",
+            "model_config": {
+                "id": "model-1",
+                "provider_id": "provider-1",
+                "provider_key": "text",
+                "adapter_key": "text_only",
+                "model_name": "local-test-model",
+                "display_name": "Local Test Model",
+                "capabilities": {},
+                "config": {},
+                "cost_config": {},
+                "timeout_seconds": 60,
+                "secret_ref": "",
+            },
         }
 
     def heartbeat(self, iteration_id, worker_id, lease_seconds):
@@ -41,7 +54,11 @@ class FakeRepository:
 
 
 class FakeRunner:
+    def __init__(self):
+        self.iteration = None
+
     def run(self, iteration):
+        self.iteration = iteration
         return RunnerResult(
             status="passed",
             result_data={"runner": "fake"},
@@ -100,12 +117,13 @@ class FakeEvents:
 def test_execute_iteration_runs_claimed_iteration_to_completion():
     repository = FakeRepository()
     events = FakeEvents()
+    runner = FakeRunner()
 
     result = execute_iteration(
         "iteration-1",
         repository=repository,
         event_publisher=events,
-        runner=FakeRunner(),
+        runner=runner,
         worker_id="worker-1",
         lease_seconds=60,
     )
@@ -136,6 +154,7 @@ def test_execute_iteration_runs_claimed_iteration_to_completion():
         ("execution.updated", "batch-1", {"execution_id": "execution-1", "status": "passed"}),
         ("batch.summary_updated", "batch-1", {"counts": {"total": 1, "passed": 1}}),
     ]
+    assert runner.iteration["model_config"]["adapter_key"] == "text_only"
 
 
 def test_execute_iteration_persists_timeline_and_publishes_artifact_events():

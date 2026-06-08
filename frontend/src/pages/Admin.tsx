@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select } from '@/components/ui/select'
 import { authApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { RuntimeConfig } from '@/pages/admin/RuntimeConfig'
 import { Models } from '@/pages/Models'
 
 const roles = ['admin', 'reviewer', 'trainer', 'auditor']
@@ -16,6 +17,7 @@ const tabs = [
   { id: 'users', label: 'Users' },
   { id: 'domains', label: 'Domains' },
   { id: 'models', label: 'Model Registry' },
+  { id: 'runtime', label: 'Runtime Config' },
 ] as const
 
 type AdminTab = (typeof tabs)[number]['id']
@@ -141,6 +143,7 @@ export function Admin() {
           </CardContent>
         </Card>
       ) : null}
+      {activeTab === 'runtime' ? <RuntimeConfig /> : null}
     </div>
   )
 }

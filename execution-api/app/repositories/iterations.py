@@ -29,10 +29,16 @@ class PostgresIterationRepository:
                 cursor.execute(
                     """
                     SELECT iterations.id::text, executions.id::text, executions.batch_id::text, iterations.status,
-                           gyms.base_url, executions.snapshot_prompt, executions.snapshot_task_id
+                           gyms.base_url, executions.snapshot_prompt, executions.snapshot_task_id,
+                           models.id::text, models.provider_id::text, COALESCE(providers.key, providers.name, ''),
+                           providers.adapter_key, models.model_name, models.display_name,
+                           models.capabilities, models.config, models.cost_config, models.timeout_seconds,
+                           models.max_output_tokens, providers.secret_ref
                     FROM execution.iterations
                     JOIN execution.executions ON executions.id = iterations.execution_id
                     JOIN catalog.gyms ON gyms.id = executions.gym_id
+                    JOIN catalog.model_definitions models ON models.id = executions.model_id
+                    JOIN catalog.model_providers providers ON providers.id = models.provider_id
                     WHERE iterations.id = %s
                     """,
                     (iteration_id,),
@@ -48,6 +54,20 @@ class PostgresIterationRepository:
                     "gym_base_url": row[4],
                     "snapshot_prompt": row[5],
                     "snapshot_task_id": row[6],
+                    "model_config": {
+                        "id": row[7],
+                        "provider_id": row[8],
+                        "provider_key": row[9],
+                        "adapter_key": row[10],
+                        "model_name": row[11],
+                        "display_name": row[12],
+                        "capabilities": row[13] or {},
+                        "config": row[14] or {},
+                        "cost_config": row[15] or {},
+                        "timeout_seconds": row[16],
+                        "max_output_tokens": row[17],
+                        "secret_ref": row[18],
+                    },
                 }
 
     def claim_iteration(self, iteration_id: str, worker_id: str, lease_seconds: int) -> dict | None:

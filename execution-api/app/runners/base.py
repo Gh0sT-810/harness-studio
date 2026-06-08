@@ -17,6 +17,7 @@ class RunnerResult:
     steps: list[RunnerStep] = field(default_factory=list)
     artifacts: list[dict] = field(default_factory=list)
     timeline_artifact_id: str = ""
+    token_usage: dict = field(default_factory=dict)
 
 
 class IterationRunner(Protocol):

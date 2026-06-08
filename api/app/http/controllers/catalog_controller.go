@@ -142,3 +142,138 @@ func (cc *CatalogController) ListModels(c *gin.Context) {
 	}
 	utils.SuccessResponse(c, http.StatusOK, "models retrieved", items)
 }
+
+func (cc *CatalogController) CreateModelProvider(c *gin.Context) {
+	var req models.ModelProviderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid model provider request")
+		return
+	}
+	item, err := cc.catalogService.CreateModelProvider(c.Request.Context(), req)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "create model provider failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusCreated, "model provider created", item)
+}
+
+func (cc *CatalogController) UpdateModelProvider(c *gin.Context) {
+	var req models.ModelProviderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid model provider request")
+		return
+	}
+	item, err := cc.catalogService.UpdateModelProvider(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "update model provider failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "model provider updated", item)
+}
+
+func (cc *CatalogController) TestModelProvider(c *gin.Context) {
+	result, err := cc.catalogService.TestModelProvider(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "model provider not found")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "model provider tested", result)
+}
+
+func (cc *CatalogController) CreateModelDefinition(c *gin.Context) {
+	var req models.ModelDefinitionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid model request")
+		return
+	}
+	item, err := cc.catalogService.CreateModelDefinition(c.Request.Context(), req)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "create model failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusCreated, "model created", item)
+}
+
+func (cc *CatalogController) UpdateModelDefinition(c *gin.Context) {
+	var req models.ModelDefinitionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid model request")
+		return
+	}
+	item, err := cc.catalogService.UpdateModelDefinition(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "update model failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "model updated", item)
+}
+
+func (cc *CatalogController) SetDefaultModel(c *gin.Context) {
+	item, err := cc.catalogService.SetDefaultModel(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "set default model failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "default model updated", item)
+}
+
+func (cc *CatalogController) TestModelDefinition(c *gin.Context) {
+	result, err := cc.catalogService.TestModelDefinition(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "model not found")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "model tested", result)
+}
+
+func (cc *CatalogController) DeleteModelDefinition(c *gin.Context) {
+	if err := cc.catalogService.DeleteModelDefinition(c.Request.Context(), c.Param("id")); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "delete model failed")
+		return
+	}
+	utils.SuccessResponseNoData(c, http.StatusOK, "model deleted")
+}
+
+func (cc *CatalogController) GetRuntimeConfig(c *gin.Context) {
+	config, err := cc.catalogService.GetSystemConfig(c.Request.Context(), "runtime")
+	if err != nil {
+		config = models.SystemConfig{Key: "runtime", Value: map[string]any{}}
+	}
+	utils.SuccessResponse(c, http.StatusOK, "runtime config retrieved", config)
+}
+
+func (cc *CatalogController) UpdateRuntimeConfig(c *gin.Context) {
+	var value map[string]any
+	if err := c.ShouldBindJSON(&value); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid runtime config")
+		return
+	}
+	config, err := cc.catalogService.SetSystemConfig(c.Request.Context(), "runtime", value)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "update runtime config failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "runtime config updated", config)
+}
+
+func (cc *CatalogController) GetEmbeddingConfig(c *gin.Context) {
+	config, err := cc.catalogService.GetSystemConfig(c.Request.Context(), "embedding")
+	if err != nil {
+		config = models.SystemConfig{Key: "embedding", Value: map[string]any{}}
+	}
+	utils.SuccessResponse(c, http.StatusOK, "embedding config retrieved", config)
+}
+
+func (cc *CatalogController) UpdateEmbeddingConfig(c *gin.Context) {
+	var value map[string]any
+	if err := c.ShouldBindJSON(&value); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid embedding config")
+		return
+	}
+	config, err := cc.catalogService.SetSystemConfig(c.Request.Context(), "embedding", value)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "update embedding config failed")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "embedding config updated", config)
+}

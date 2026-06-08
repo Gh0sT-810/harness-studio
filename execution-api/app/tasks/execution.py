@@ -1,5 +1,7 @@
 from app.celery_app import celery_app
+from app.adapters.registry import AdapterRegistry
 from app.events import RedisEventPublisher
+from app.models.registry import ModelDefinition
 from app.repositories.iterations import PostgresIterationRepository
 from app.runners.playwright_capture import PlaywrightCaptureRunner
 from app.settings import get_settings
@@ -24,6 +26,10 @@ def execute_iteration(
     if iteration is None:
         return {"id": iteration_id, "status": "not_claimed"}
     iteration = {**repository.get_iteration(iteration_id), **iteration}
+    if iteration.get("model_config"):
+        model = ModelDefinition.from_mapping(iteration["model_config"])
+        adapter = AdapterRegistry().resolve(model)
+        iteration["model_config"] = {**iteration["model_config"], "resolved_adapter": adapter.__class__.__name__}
 
     event_publisher.publish_iteration_event("iteration.started", iteration, {"status": "executing"})
     try:
@@ -73,6 +79,9 @@ def execute_iteration(
             iteration,
             {"message": step.message, **step.payload},
         )
+
+    if getattr(result, "token_usage", None) and hasattr(repository, "record_token_usage"):
+        repository.record_token_usage(iteration_id, result.token_usage)
 
     completed = repository.complete_iteration(
         iteration_id,

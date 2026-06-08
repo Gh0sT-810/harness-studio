@@ -19,6 +19,16 @@ type CatalogStore interface {
 	DeleteTask(ctx context.Context, id string) error
 	ListModelProviders(ctx context.Context) ([]models.ModelProvider, error)
 	ListModelDefinitions(ctx context.Context) ([]models.ModelDefinition, error)
+	GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error)
+	GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error)
+	CreateModelProvider(ctx context.Context, req models.ModelProviderRequest) (models.ModelProvider, error)
+	UpdateModelProvider(ctx context.Context, id string, req models.ModelProviderRequest) (models.ModelProvider, error)
+	CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
+	UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
+	SetDefaultModel(ctx context.Context, id string) (models.ModelDefinition, error)
+	DeleteModelDefinition(ctx context.Context, id string) error
+	GetSystemConfig(ctx context.Context, key string) (models.SystemConfig, error)
+	SetSystemConfig(ctx context.Context, key string, value map[string]any) (models.SystemConfig, error)
 }
 
 type CatalogServiceInterface interface {
@@ -34,6 +44,18 @@ type CatalogServiceInterface interface {
 	DeleteTask(ctx context.Context, id string) error
 	ListModelProviders(ctx context.Context) ([]models.ModelProvider, error)
 	ListModelDefinitions(ctx context.Context) ([]models.ModelDefinition, error)
+	GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error)
+	GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error)
+	CreateModelProvider(ctx context.Context, req models.ModelProviderRequest) (models.ModelProvider, error)
+	UpdateModelProvider(ctx context.Context, id string, req models.ModelProviderRequest) (models.ModelProvider, error)
+	TestModelProvider(ctx context.Context, id string) (models.ModelTestResult, error)
+	CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
+	UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
+	SetDefaultModel(ctx context.Context, id string) (models.ModelDefinition, error)
+	TestModelDefinition(ctx context.Context, id string) (models.ModelTestResult, error)
+	DeleteModelDefinition(ctx context.Context, id string) error
+	GetSystemConfig(ctx context.Context, key string) (models.SystemConfig, error)
+	SetSystemConfig(ctx context.Context, key string, value map[string]any) (models.SystemConfig, error)
 }
 
 type CatalogService struct {
@@ -90,4 +112,66 @@ func (s *CatalogService) ListModelProviders(ctx context.Context) ([]models.Model
 
 func (s *CatalogService) ListModelDefinitions(ctx context.Context) ([]models.ModelDefinition, error) {
 	return s.store.ListModelDefinitions(ctx)
+}
+
+func (s *CatalogService) GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error) {
+	return s.store.GetModelProvider(ctx, id)
+}
+
+func (s *CatalogService) GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error) {
+	return s.store.GetModelDefinition(ctx, id)
+}
+
+func (s *CatalogService) CreateModelProvider(ctx context.Context, req models.ModelProviderRequest) (models.ModelProvider, error) {
+	return s.store.CreateModelProvider(ctx, req)
+}
+
+func (s *CatalogService) UpdateModelProvider(ctx context.Context, id string, req models.ModelProviderRequest) (models.ModelProvider, error) {
+	return s.store.UpdateModelProvider(ctx, id, req)
+}
+
+func (s *CatalogService) TestModelProvider(ctx context.Context, id string) (models.ModelTestResult, error) {
+	provider, err := s.store.GetModelProvider(ctx, id)
+	if err != nil {
+		return models.ModelTestResult{}, err
+	}
+	if provider.AdapterKey == "" {
+		return models.ModelTestResult{Status: "error", Message: "adapter key is required"}, nil
+	}
+	return models.ModelTestResult{Status: "ok", Message: "provider config valid"}, nil
+}
+
+func (s *CatalogService) CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	return s.store.CreateModelDefinition(ctx, req)
+}
+
+func (s *CatalogService) UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	return s.store.UpdateModelDefinition(ctx, id, req)
+}
+
+func (s *CatalogService) SetDefaultModel(ctx context.Context, id string) (models.ModelDefinition, error) {
+	return s.store.SetDefaultModel(ctx, id)
+}
+
+func (s *CatalogService) TestModelDefinition(ctx context.Context, id string) (models.ModelTestResult, error) {
+	model, err := s.store.GetModelDefinition(ctx, id)
+	if err != nil {
+		return models.ModelTestResult{}, err
+	}
+	if !model.Enabled {
+		return models.ModelTestResult{Status: "warning", Message: "model is disabled"}, nil
+	}
+	return models.ModelTestResult{Status: "ok", Message: "model config valid"}, nil
+}
+
+func (s *CatalogService) DeleteModelDefinition(ctx context.Context, id string) error {
+	return s.store.DeleteModelDefinition(ctx, id)
+}
+
+func (s *CatalogService) GetSystemConfig(ctx context.Context, key string) (models.SystemConfig, error) {
+	return s.store.GetSystemConfig(ctx, key)
+}
+
+func (s *CatalogService) SetSystemConfig(ctx context.Context, key string, value map[string]any) (models.SystemConfig, error) {
+	return s.store.SetSystemConfig(ctx, key, value)
 }

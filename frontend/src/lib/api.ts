@@ -45,9 +45,39 @@ export type Task = {
 
 export type ModelDefinition = {
   id: string
+  providerId: string
   displayName: string
   modelName: string
+  capabilities?: Record<string, unknown>
+  config?: Record<string, unknown>
+  costConfig?: Record<string, unknown>
+  timeoutSeconds?: number
+  maxOutputTokens?: number
+  enabled?: boolean
   isDefault: boolean
+}
+
+export type ModelProvider = {
+  id: string
+  key: string
+  name: string
+  displayName: string
+  adapterKey: string
+  baseUrl?: string
+  secretRef?: string
+  enabled: boolean
+  config?: Record<string, unknown>
+}
+
+export type ModelTestResult = {
+  status: string
+  message: string
+}
+
+export type SystemConfig = {
+  key: string
+  value: Record<string, unknown>
+  updatedAt?: string
 }
 
 export type Batch = {
@@ -255,7 +285,43 @@ export const taskApi = {
 
 export const modelApi = {
   list: () => request<ModelDefinition[]>('/api/models'),
-  listProviders: () => request<Array<{ id: string; name: string; adapterKey: string }>>('/api/model-providers'),
+  listProviders: () => request<ModelProvider[]>('/api/model-providers'),
+  createProvider: (payload: Partial<ModelProvider> & { key: string; displayName: string; adapterKey: string }) =>
+    request<ModelProvider>('/api/model-providers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateProvider: (id: string, payload: Partial<ModelProvider> & { key: string; displayName: string; adapterKey: string }) =>
+    request<ModelProvider>(`/api/model-providers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  testProvider: (id: string) => request<ModelTestResult>(`/api/model-providers/${id}/test`, { method: 'POST' }),
+  create: (payload: Partial<ModelDefinition> & { providerId: string; modelName: string; displayName: string }) =>
+    request<ModelDefinition>('/api/models', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  update: (id: string, payload: Partial<ModelDefinition> & { providerId: string; modelName: string; displayName: string }) =>
+    request<ModelDefinition>(`/api/models/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  setDefault: (id: string) => request<ModelDefinition>(`/api/models/${id}/default`, { method: 'POST' }),
+  test: (id: string) => request<ModelTestResult>(`/api/models/${id}/test`, { method: 'POST' }),
+  delete: (id: string) => request<Record<string, never>>(`/api/models/${id}`, { method: 'DELETE' }),
+  getRuntimeConfig: () => request<SystemConfig>('/api/admin/runtime-config'),
+  updateRuntimeConfig: (value: Record<string, unknown>) =>
+    request<SystemConfig>('/api/admin/runtime-config', {
+      method: 'PUT',
+      body: JSON.stringify(value),
+    }),
+  getEmbeddingConfig: () => request<SystemConfig>('/api/admin/embedding-config'),
+  updateEmbeddingConfig: (value: Record<string, unknown>) =>
+    request<SystemConfig>('/api/admin/embedding-config', {
+      method: 'PUT',
+      body: JSON.stringify(value),
+    }),
 }
 
 export const batchApi = {

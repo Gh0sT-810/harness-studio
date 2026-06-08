@@ -360,7 +360,11 @@ func (s *Store) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (s *Store) ListModelProviders(ctx context.Context) ([]models.ModelProvider, error) {
-	rows, err := s.db.Query(ctx, `SELECT id::text, name, adapter_key, enabled, config, created_at FROM catalog.model_providers ORDER BY name`)
+	rows, err := s.db.Query(ctx, `
+SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+FROM catalog.model_providers
+ORDER BY display_name
+`)
 	if err != nil {
 		return nil, fmt.Errorf("list model providers: %w", err)
 	}
@@ -368,12 +372,10 @@ func (s *Store) ListModelProviders(ctx context.Context) ([]models.ModelProvider,
 
 	var items []models.ModelProvider
 	for rows.Next() {
-		var item models.ModelProvider
-		var config []byte
-		if err := rows.Scan(&item.ID, &item.Name, &item.AdapterKey, &item.Enabled, &config, &item.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan model provider: %w", err)
+		item, err := scanModelProvider(rows)
+		if err != nil {
+			return nil, err
 		}
-		item.Config = mapFromJSON(config)
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -381,7 +383,8 @@ func (s *Store) ListModelProviders(ctx context.Context) ([]models.ModelProvider,
 
 func (s *Store) ListModelDefinitions(ctx context.Context) ([]models.ModelDefinition, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT id::text, provider_id::text, model_name, display_name, capabilities, cost_config, enabled, is_default, created_at
+SELECT id::text, provider_id::text, model_name, display_name, capabilities, config, cost_config,
+       timeout_seconds, max_output_tokens, enabled, is_default, created_at, updated_at
 FROM catalog.model_definitions
 ORDER BY is_default DESC, display_name
 `)
@@ -399,6 +402,180 @@ ORDER BY is_default DESC, display_name
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error) {
+	row := s.db.QueryRow(ctx, `
+SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+FROM catalog.model_providers
+WHERE id = $1
+`, id)
+	return scanModelProvider(row)
+}
+
+func (s *Store) CreateModelProvider(ctx context.Context, req models.ModelProviderRequest) (models.ModelProvider, error) {
+	name := defaultString(req.Name, req.DisplayName)
+	row := s.db.QueryRow(ctx, `
+INSERT INTO catalog.model_providers (key, name, display_name, adapter_key, base_url, secret_ref, enabled, config)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+`, req.Key, name, req.DisplayName, req.AdapterKey, req.BaseURL, req.SecretRef, req.Enabled, jsonValue(req.Config))
+	return scanModelProvider(row)
+}
+
+func (s *Store) UpdateModelProvider(ctx context.Context, id string, req models.ModelProviderRequest) (models.ModelProvider, error) {
+	name := defaultString(req.Name, req.DisplayName)
+	row := s.db.QueryRow(ctx, `
+UPDATE catalog.model_providers
+SET key = $2,
+    name = $3,
+    display_name = $4,
+    adapter_key = $5,
+    base_url = $6,
+    secret_ref = $7,
+    enabled = $8,
+    config = $9,
+    updated_at = now()
+WHERE id = $1
+RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+`, id, req.Key, name, req.DisplayName, req.AdapterKey, req.BaseURL, req.SecretRef, req.Enabled, jsonValue(req.Config))
+	return scanModelProvider(row)
+}
+
+func (s *Store) GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error) {
+	row := s.db.QueryRow(ctx, `
+SELECT id::text, provider_id::text, model_name, display_name, capabilities, config, cost_config,
+       timeout_seconds, max_output_tokens, enabled, is_default, created_at, updated_at
+FROM catalog.model_definitions
+WHERE id = $1
+`, id)
+	return scanModelDefinition(row)
+}
+
+func (s *Store) CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	timeoutSeconds := req.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	row := s.db.QueryRow(ctx, `
+INSERT INTO catalog.model_definitions (
+  provider_id, model_name, display_name, capabilities, config, cost_config,
+  timeout_seconds, max_output_tokens, enabled, is_default
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false)
+RETURNING id::text, provider_id::text, model_name, display_name, capabilities, config, cost_config,
+       timeout_seconds, max_output_tokens, enabled, is_default, created_at, updated_at
+`, req.ProviderID, req.ModelName, req.DisplayName, jsonValue(req.Capabilities), jsonValue(req.Config), jsonValue(req.CostConfig), timeoutSeconds, req.MaxOutputTokens, req.Enabled)
+	item, err := scanModelDefinition(row)
+	if err != nil {
+		return models.ModelDefinition{}, err
+	}
+	if req.IsDefault {
+		return s.SetDefaultModel(ctx, item.ID)
+	}
+	return item, nil
+}
+
+func (s *Store) UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	timeoutSeconds := req.TimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	row := s.db.QueryRow(ctx, `
+UPDATE catalog.model_definitions
+SET provider_id = $2,
+    model_name = $3,
+    display_name = $4,
+    capabilities = $5,
+    config = $6,
+    cost_config = $7,
+    timeout_seconds = $8,
+    max_output_tokens = $9,
+    enabled = $10,
+    is_default = false,
+    updated_at = now()
+WHERE id = $1
+RETURNING id::text, provider_id::text, model_name, display_name, capabilities, config, cost_config,
+       timeout_seconds, max_output_tokens, enabled, is_default, created_at, updated_at
+`, id, req.ProviderID, req.ModelName, req.DisplayName, jsonValue(req.Capabilities), jsonValue(req.Config), jsonValue(req.CostConfig), timeoutSeconds, req.MaxOutputTokens, req.Enabled)
+	item, err := scanModelDefinition(row)
+	if err != nil {
+		return models.ModelDefinition{}, err
+	}
+	if req.IsDefault {
+		return s.SetDefaultModel(ctx, id)
+	}
+	return item, nil
+}
+
+func (s *Store) SetDefaultModel(ctx context.Context, id string) (models.ModelDefinition, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return models.ModelDefinition{}, fmt.Errorf("begin set default model: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	var providerID string
+	if err := tx.QueryRow(ctx, `SELECT provider_id::text FROM catalog.model_definitions WHERE id = $1`, id).Scan(&providerID); err != nil {
+		return models.ModelDefinition{}, fmt.Errorf("load model provider for default: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE catalog.model_definitions SET is_default = false, updated_at = now() WHERE provider_id = $1`, providerID); err != nil {
+		return models.ModelDefinition{}, fmt.Errorf("clear default model: %w", err)
+	}
+	row := tx.QueryRow(ctx, `
+UPDATE catalog.model_definitions
+SET is_default = true,
+    enabled = true,
+    updated_at = now()
+WHERE id = $1
+RETURNING id::text, provider_id::text, model_name, display_name, capabilities, config, cost_config,
+       timeout_seconds, max_output_tokens, enabled, is_default, created_at, updated_at
+`, id)
+	item, err := scanModelDefinition(row)
+	if err != nil {
+		return models.ModelDefinition{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return models.ModelDefinition{}, fmt.Errorf("commit set default model: %w", err)
+	}
+	return item, nil
+}
+
+func (s *Store) DeleteModelDefinition(ctx context.Context, id string) error {
+	_, err := s.db.Exec(ctx, `UPDATE catalog.model_definitions SET enabled = false, is_default = false, updated_at = now() WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("disable model definition: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetSystemConfig(ctx context.Context, key string) (models.SystemConfig, error) {
+	row := s.db.QueryRow(ctx, `SELECT key, value, updated_at::text FROM catalog.system_config WHERE key = $1`, key)
+	var item models.SystemConfig
+	var value []byte
+	if err := row.Scan(&item.Key, &value, &item.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.SystemConfig{}, ErrNotFound
+		}
+		return models.SystemConfig{}, fmt.Errorf("get system config: %w", err)
+	}
+	item.Value = mapFromJSON(value)
+	return item, nil
+}
+
+func (s *Store) SetSystemConfig(ctx context.Context, key string, value map[string]any) (models.SystemConfig, error) {
+	row := s.db.QueryRow(ctx, `
+INSERT INTO catalog.system_config (key, value, updated_at)
+VALUES ($1, $2, now())
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+RETURNING key, value, updated_at::text
+`, key, jsonValue(value))
+	var item models.SystemConfig
+	var raw []byte
+	if err := row.Scan(&item.Key, &raw, &item.UpdatedAt); err != nil {
+		return models.SystemConfig{}, fmt.Errorf("set system config: %w", err)
+	}
+	item.Value = mapFromJSON(raw)
+	return item, nil
 }
 
 func (s *Store) CreateBatch(ctx context.Context, req models.BatchCreateRequest, createdBy string) (models.Batch, error) {
@@ -719,13 +896,30 @@ func scanTask(row scanner) (models.Task, error) {
 	return task, nil
 }
 
+func scanModelProvider(row scanner) (models.ModelProvider, error) {
+	var item models.ModelProvider
+	var config []byte
+	if err := row.Scan(&item.ID, &item.Key, &item.Name, &item.DisplayName, &item.AdapterKey, &item.BaseURL, &item.SecretRef, &item.Enabled, &config, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.ModelProvider{}, ErrNotFound
+		}
+		return models.ModelProvider{}, fmt.Errorf("scan model provider: %w", err)
+	}
+	item.Config = mapFromJSON(config)
+	return item, nil
+}
+
 func scanModelDefinition(row scanner) (models.ModelDefinition, error) {
 	var item models.ModelDefinition
-	var capabilities, costConfig []byte
-	if err := row.Scan(&item.ID, &item.ProviderID, &item.ModelName, &item.DisplayName, &capabilities, &costConfig, &item.Enabled, &item.IsDefault, &item.CreatedAt); err != nil {
+	var capabilities, config, costConfig []byte
+	if err := row.Scan(&item.ID, &item.ProviderID, &item.ModelName, &item.DisplayName, &capabilities, &config, &costConfig, &item.TimeoutSeconds, &item.MaxOutputTokens, &item.Enabled, &item.IsDefault, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.ModelDefinition{}, ErrNotFound
+		}
 		return models.ModelDefinition{}, fmt.Errorf("scan model definition: %w", err)
 	}
 	item.Capabilities = mapFromJSON(capabilities)
+	item.Config = mapFromJSON(config)
 	item.CostConfig = mapFromJSON(costConfig)
 	return item, nil
 }
@@ -1082,7 +1276,8 @@ WHERE executions.batch_id = $1
 
 	modelRows, err := s.db.Query(ctx, `
 SELECT DISTINCT models.id::text, models.provider_id::text, models.model_name, models.display_name,
-       models.capabilities, models.cost_config, models.enabled, models.is_default, models.created_at
+       models.capabilities, models.config, models.cost_config, models.timeout_seconds, models.max_output_tokens,
+       models.enabled, models.is_default, models.created_at, models.updated_at
 FROM execution.executions
 JOIN catalog.model_definitions models ON models.id = executions.model_id
 WHERE executions.batch_id = $1

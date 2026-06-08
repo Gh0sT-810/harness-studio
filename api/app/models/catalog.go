@@ -53,22 +53,66 @@ type TaskRequest struct {
 }
 
 type ModelProvider struct {
-	ID         string         `json:"id"`
-	Name       string         `json:"name"`
-	AdapterKey string         `json:"adapterKey"`
-	Enabled    bool           `json:"enabled"`
-	Config     map[string]any `json:"config"`
-	CreatedAt  time.Time      `json:"createdAt"`
+	ID          string         `json:"id"`
+	Key         string         `json:"key"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"displayName"`
+	AdapterKey  string         `json:"adapterKey"`
+	BaseURL     string         `json:"baseUrl"`
+	SecretRef   string         `json:"secretRef"`
+	Enabled     bool           `json:"enabled"`
+	Config      map[string]any `json:"config"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
 }
 
 type ModelDefinition struct {
-	ID           string         `json:"id"`
-	ProviderID   string         `json:"providerId"`
-	ModelName    string         `json:"modelName"`
-	DisplayName  string         `json:"displayName"`
-	Capabilities map[string]any `json:"capabilities"`
-	CostConfig   map[string]any `json:"costConfig"`
-	Enabled      bool           `json:"enabled"`
-	IsDefault    bool           `json:"isDefault"`
-	CreatedAt    time.Time      `json:"createdAt"`
+	ID              string         `json:"id"`
+	ProviderID      string         `json:"providerId"`
+	ModelName       string         `json:"modelName"`
+	DisplayName     string         `json:"displayName"`
+	Capabilities    map[string]any `json:"capabilities"`
+	Config          map[string]any `json:"config"`
+	CostConfig      map[string]any `json:"costConfig"`
+	TimeoutSeconds  int            `json:"timeoutSeconds"`
+	MaxOutputTokens int            `json:"maxOutputTokens"`
+	Enabled         bool           `json:"enabled"`
+	IsDefault       bool           `json:"isDefault"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
+}
+
+type ModelProviderRequest struct {
+	Key         string         `json:"key" binding:"required"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"displayName" binding:"required"`
+	AdapterKey  string         `json:"adapterKey" binding:"required"`
+	BaseURL     string         `json:"baseUrl"`
+	SecretRef   string         `json:"secretRef"`
+	Enabled     bool           `json:"enabled"`
+	Config      map[string]any `json:"config"`
+}
+
+type ModelDefinitionRequest struct {
+	ProviderID      string         `json:"providerId" binding:"required"`
+	ModelName       string         `json:"modelName" binding:"required"`
+	DisplayName     string         `json:"displayName" binding:"required"`
+	Capabilities    map[string]any `json:"capabilities"`
+	Config          map[string]any `json:"config"`
+	CostConfig      map[string]any `json:"costConfig"`
+	TimeoutSeconds  int            `json:"timeoutSeconds"`
+	MaxOutputTokens int            `json:"maxOutputTokens"`
+	Enabled         bool           `json:"enabled"`
+	IsDefault       bool           `json:"isDefault"`
+}
+
+type ModelTestResult struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type SystemConfig struct {
+	Key       string         `json:"key"`
+	Value     map[string]any `json:"value"`
+	UpdatedAt string         `json:"updatedAt,omitempty"`
 }

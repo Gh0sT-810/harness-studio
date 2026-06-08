@@ -75,6 +75,62 @@ paths:
       responses:
         "200":
           description: Model definition list
+    post:
+      summary: Create model definition
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelDefinitionRequest"
+      responses:
+        "201":
+          description: Created model definition
+  /api/models/{id}:
+    put:
+      summary: Update model definition
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelDefinitionRequest"
+      responses:
+        "200":
+          description: Updated model definition
+    delete:
+      summary: Disable model definition
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Model disabled
+  /api/models/{id}/default:
+    post:
+      summary: Set default model for its provider
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Default model updated
+  /api/models/{id}/test:
+    post:
+      summary: Validate model registry configuration without external provider calls
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Model test result
   /api/model-providers:
     get:
       summary: List model providers
@@ -83,6 +139,85 @@ paths:
       responses:
         "200":
           description: Model provider list
+    post:
+      summary: Create model provider
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelProviderRequest"
+      responses:
+        "201":
+          description: Created model provider
+  /api/model-providers/{id}:
+    put:
+      summary: Update model provider
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelProviderRequest"
+      responses:
+        "200":
+          description: Updated model provider
+  /api/model-providers/{id}/test:
+    post:
+      summary: Validate provider registry configuration without raw secret storage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Provider test result
+  /api/admin/runtime-config:
+    get:
+      summary: Get core runtime config from catalog.system_config
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Runtime config
+    put:
+      summary: Update core runtime config
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Runtime config updated
+  /api/admin/embedding-config:
+    get:
+      summary: Get embedding runtime config from catalog.system_config
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Embedding config
+    put:
+      summary: Update embedding runtime config
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Embedding config updated
   /api/batches:
     get:
       summary: List batches
@@ -346,6 +481,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     LoginRequest:
       type: object
@@ -404,6 +546,66 @@ components:
         status:
           type: string
         generatedArtifactId:
+          type: string
+    ModelProviderRequest:
+      type: object
+      required: [key, displayName, adapterKey]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        adapterKey:
+          type: string
+          enum: [openai_responses_computer, anthropic_computer_use, gemini_computer_use, text_only, llm_grader, embedding]
+        baseUrl:
+          type: string
+        secretRef:
+          type: string
+          description: Environment/secret manager reference. Raw API keys must not be stored.
+        enabled:
+          type: boolean
+        config:
+          type: object
+          additionalProperties: true
+    ModelDefinitionRequest:
+      type: object
+      required: [providerId, modelName, displayName]
+      properties:
+        providerId:
+          type: string
+        modelName:
+          type: string
+        displayName:
+          type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+        config:
+          type: object
+          additionalProperties: true
+        costConfig:
+          type: object
+          additionalProperties: true
+        timeoutSeconds:
+          type: integer
+        maxOutputTokens:
+          type: integer
+        enabled:
+          type: boolean
+        isDefault:
+          type: boolean
+    SystemConfig:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: object
+          additionalProperties: true
+        updatedAt:
           type: string
     TokenUsageSummary:
       type: object

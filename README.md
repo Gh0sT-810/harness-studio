@@ -1,6 +1,6 @@
 # Harness Studio
 
-Phase 6 establishes the self-hosted harness foundation, core metadata model, execution pipeline, artifact service, Live Monitor, reports, leaderboard, and token usage monitoring:
+Phase 7 establishes the self-hosted harness foundation, core metadata model, execution pipeline, artifact service, Live Monitor, reports, leaderboard, token usage monitoring, and admin-managed model registry/runtime config:
 
 - React + TypeScript frontend shell
 - Go public/control API with `GET /health`
@@ -15,6 +15,7 @@ Phase 6 establishes the self-hosted harness foundation, core metadata model, exe
 - Live Monitor playback from timeline artifacts and SSE events
 - Internal report-service for persisted report jobs and artifact-backed JSON/CSV/Excel batch reports
 - Token usage summaries, CSV export, and leaderboard aggregate APIs
+- Admin Model Registry for provider/model CRUD, adapter keys, cost/capability/timeouts, default model selection, and core runtime config
 
 The implementation follows the rules in `.cursor/rules`.
 
@@ -30,7 +31,7 @@ The implementation follows the rules in `.cursor/rules`.
 - `worker-maintenance` recovers expired leases and re-enqueues retryable iterations.
 - `artifact-service` owns local artifact files and metadata; Go proxies public artifact APIs.
 - `report-service` owns report job lifecycle, report generation, `report.ready` events, and generated report artifact writes.
-- Full provider adapters and Studio/QC workflows are later phases.
+- Full provider API calls and Studio/QC workflows are later phases.
 
 ## Local Setup
 
@@ -140,6 +141,40 @@ GET  /api/leaderboard             # model/gym aggregate metrics
 ```
 
 Batch snapshots now include report readiness (`status`, `reportJobId`, `artifactId`, timestamps, and `error`) instead of a static placeholder. Token usage is ready for provider adapters through `execution-api` repository helpers; adapters should persist usage after model calls return usage payloads.
+
+## Phase 7 Model Registry And Runtime Config Smoke
+
+Phase 7 turns the model catalog into an admin-managed registry. Admins can create/edit providers, create/edit/disable models, test registry configuration, set a provider-scoped default model, and edit core runtime config from `/admin`.
+
+Public authenticated reads remain:
+
+```text
+GET /api/models
+GET /api/model-providers
+```
+
+Admin management routes:
+
+```text
+POST /api/model-providers
+PUT  /api/model-providers/{id}
+POST /api/model-providers/{id}/test
+POST /api/models
+PUT  /api/models/{id}
+POST /api/models/{id}/default
+POST /api/models/{id}/test
+DELETE /api/models/{id}              # soft-disable
+GET  /api/admin/runtime-config
+PUT  /api/admin/runtime-config
+GET  /api/admin/embedding-config
+PUT  /api/admin/embedding-config
+```
+
+Supported adapter keys are `openai_responses_computer`, `anthropic_computer_use`, `gemini_computer_use`, `text_only`, `llm_grader`, and `embedding`. Adding a model under an existing provider/protocol is config-only. Adding a new provider/protocol requires adapter code in `execution-api/app/adapters`.
+
+Do not store raw API keys in Postgres. Provider records store `secretRef` values only, such as `OPENAI_API_KEY`, and runtime/embedding config should follow the same policy.
+
+`worker-execution` now loads selected model/provider metadata with each iteration, resolves the adapter key through the worker adapter registry, and preserves deterministic local behavior through the `text_only` adapter. Provider calls remain stubbed until real API credentials and adapter implementations are configured. If a runner/adapter returns `token_usage`, the execution repository persists it through the Phase 6 token usage helper.
 
 ## Volumes
 
