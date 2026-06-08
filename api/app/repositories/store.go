@@ -1,12 +1,15 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
@@ -509,6 +512,7 @@ func (s *Store) GetBatchSnapshot(ctx context.Context, batchID string) (models.Ba
 	if err != nil {
 		return models.BatchSnapshot{}, err
 	}
+	report := s.latestBatchReportReadiness(ctx, batchID)
 
 	counts := map[string]int{"total": len(iterations)}
 	for _, iteration := range iterations {
@@ -520,7 +524,7 @@ func (s *Store) GetBatchSnapshot(ctx context.Context, batchID string) (models.Ba
 		Executions: executions,
 		Iterations: iterations,
 		Counts:     counts,
-		Report:     map[string]any{"status": "not_configured"},
+		Report:     report,
 		Catalog: models.SnapshotCatalog{
 			Gyms:   gyms,
 			Tasks:  tasks,
@@ -552,6 +556,126 @@ ORDER BY executions.created_at, iterations.iteration_number
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+func (s *Store) GetTokenUsageSummary(ctx context.Context, filters models.UsageFilters) (models.TokenUsageSummary, error) {
+	where, args := usageWhere(filters)
+	row := s.db.QueryRow(ctx, `
+SELECT COALESCE(SUM(input_tokens), 0)::bigint,
+       COALESCE(SUM(output_tokens), 0)::bigint,
+       COALESCE(SUM(input_tokens + output_tokens), 0)::bigint,
+       COALESCE(SUM(cost_usd), 0)::float8,
+       COUNT(*)::bigint
+FROM execution.token_usage
+`+where, args...)
+	var summary models.TokenUsageSummary
+	if err := row.Scan(&summary.InputTokens, &summary.OutputTokens, &summary.TotalTokens, &summary.TotalCostUSD, &summary.Runs); err != nil {
+		return models.TokenUsageSummary{}, fmt.Errorf("token usage summary: %w", err)
+	}
+	modelBreakdown, err := s.usageBreakdown(ctx, filters, "model_id::text", "COALESCE(model_name, '')")
+	if err != nil {
+		return models.TokenUsageSummary{}, err
+	}
+	gymBreakdown, err := s.usageBreakdown(ctx, filters, "gym_id::text", "COALESCE(gym_name, '')")
+	if err != nil {
+		return models.TokenUsageSummary{}, err
+	}
+	summary.ByModel = modelBreakdown
+	summary.ByGym = gymBreakdown
+	return summary, nil
+}
+
+func (s *Store) GetTokenUsageFilters(ctx context.Context) (models.TokenUsageFilters, error) {
+	batches, err := s.filterOptions(ctx, "batch_id::text", "COALESCE(batches.name, batch_id::text)", "LEFT JOIN execution.batches ON batches.id = token_usage.batch_id")
+	if err != nil {
+		return models.TokenUsageFilters{}, err
+	}
+	gyms, err := s.filterOptions(ctx, "gym_id::text", "COALESCE(gym_name, '')", "")
+	if err != nil {
+		return models.TokenUsageFilters{}, err
+	}
+	modelsByID, err := s.filterOptions(ctx, "model_id::text", "COALESCE(model_name, '')", "")
+	if err != nil {
+		return models.TokenUsageFilters{}, err
+	}
+	return models.TokenUsageFilters{Batches: batches, Gyms: gyms, Models: modelsByID}, nil
+}
+
+func (s *Store) ExportTokenUsageCSV(ctx context.Context, filters models.UsageFilters) ([]byte, error) {
+	where, args := usageWhere(filters)
+	rows, err := s.db.Query(ctx, `
+SELECT COALESCE(batch_id::text, ''), COALESCE(gym_name, ''), COALESCE(model_name, ''),
+       input_tokens, output_tokens, input_tokens + output_tokens, cost_usd::float8, created_at::text
+FROM execution.token_usage
+`+where+`
+ORDER BY created_at DESC
+`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("token usage csv: %w", err)
+	}
+	defer rows.Close()
+	var buffer bytes.Buffer
+	writer := csv.NewWriter(&buffer)
+	_ = writer.Write([]string{"batchId", "gym", "model", "inputTokens", "outputTokens", "totalTokens", "costUsd", "createdAt"})
+	for rows.Next() {
+		var batchID, gym, model, createdAt string
+		var inputTokens, outputTokens, totalTokens int64
+		var cost float64
+		if err := rows.Scan(&batchID, &gym, &model, &inputTokens, &outputTokens, &totalTokens, &cost, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan token usage csv: %w", err)
+		}
+		_ = writer.Write([]string{batchID, gym, model, fmt.Sprint(inputTokens), fmt.Sprint(outputTokens), fmt.Sprint(totalTokens), fmt.Sprintf("%.6f", cost), createdAt})
+	}
+	writer.Flush()
+	return buffer.Bytes(), rows.Err()
+}
+
+func (s *Store) GetLeaderboard(ctx context.Context, filters models.LeaderboardFilters) ([]models.LeaderboardRow, error) {
+	where, args := leaderboardWhere(filters)
+	rows, err := s.db.Query(ctx, `
+WITH usage AS (
+  SELECT model_id, gym_id,
+         COALESCE(SUM(input_tokens + output_tokens), 0)::bigint AS total_tokens,
+         COALESCE(SUM(cost_usd), 0)::float8 AS total_cost
+  FROM execution.token_usage
+  GROUP BY model_id, gym_id
+)
+SELECT executions.model_id::text,
+       COALESCE(model_definitions.display_name, model_definitions.model_name, ''),
+       executions.gym_id::text,
+       COALESCE(gyms.name, ''),
+       COUNT(iterations.id)::bigint,
+       COUNT(iterations.id) FILTER (WHERE iterations.status = 'passed')::bigint,
+       COUNT(iterations.id) FILTER (WHERE iterations.status IN ('failed','crashed','timeout','terminated','cancelled'))::bigint,
+       COALESCE(AVG(iterations.total_steps), 0)::float8,
+       COALESCE(AVG(EXTRACT(EPOCH FROM (iterations.completed_at - iterations.started_at))) FILTER (WHERE iterations.started_at IS NOT NULL AND iterations.completed_at IS NOT NULL), 0)::float8,
+       COALESCE(MAX(usage.total_tokens), 0)::bigint,
+       COALESCE(MAX(usage.total_cost), 0)::float8
+FROM execution.iterations
+JOIN execution.executions ON executions.id = iterations.execution_id
+JOIN catalog.model_definitions ON model_definitions.id = executions.model_id
+JOIN catalog.gyms ON gyms.id = executions.gym_id
+LEFT JOIN usage ON usage.model_id = executions.model_id AND usage.gym_id = executions.gym_id
+`+where+`
+GROUP BY executions.model_id, model_definitions.display_name, model_definitions.model_name, executions.gym_id, gyms.name
+ORDER BY 7 DESC, 5 DESC
+`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("leaderboard query: %w", err)
+	}
+	defer rows.Close()
+	var items []models.LeaderboardRow
+	for rows.Next() {
+		var item models.LeaderboardRow
+		if err := rows.Scan(&item.ModelID, &item.ModelName, &item.GymID, &item.GymName, &item.Runs, &item.Passed, &item.Failed, &item.AverageSteps, &item.AverageSeconds, &item.TotalTokens, &item.TotalCostUSD); err != nil {
+			return nil, fmt.Errorf("scan leaderboard: %w", err)
+		}
+		if item.Runs > 0 {
+			item.PassRate = float64(item.Passed) / float64(item.Runs)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // scan helpers and compact query helpers are intentionally local to keep the first Phase 2 store readable.
@@ -780,6 +904,134 @@ func attachArtifactsToIterations(iterations []models.Iteration, artifacts []mode
 	}
 	for index := range iterations {
 		iterations[index].Artifacts = byScope["iterations/"+iterations[index].ID]
+	}
+}
+
+func (s *Store) usageBreakdown(ctx context.Context, filters models.UsageFilters, idExpr string, nameExpr string) ([]models.UsageBreakdown, error) {
+	where, args := usageWhere(filters)
+	rows, err := s.db.Query(ctx, fmt.Sprintf(`
+SELECT COALESCE(%s, ''), %s,
+       COALESCE(SUM(input_tokens), 0)::bigint,
+       COALESCE(SUM(output_tokens), 0)::bigint,
+       COALESCE(SUM(input_tokens + output_tokens), 0)::bigint,
+       COALESCE(SUM(cost_usd), 0)::float8,
+       COUNT(*)::bigint
+FROM execution.token_usage
+%s
+GROUP BY 1, 2
+ORDER BY 7 DESC, 2
+`, idExpr, nameExpr, where), args...)
+	if err != nil {
+		return nil, fmt.Errorf("token usage breakdown: %w", err)
+	}
+	defer rows.Close()
+	var items []models.UsageBreakdown
+	for rows.Next() {
+		var item models.UsageBreakdown
+		if err := rows.Scan(&item.ID, &item.Name, &item.InputTokens, &item.OutputTokens, &item.TotalTokens, &item.TotalCostUSD, &item.Runs); err != nil {
+			return nil, fmt.Errorf("scan token usage breakdown: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) filterOptions(ctx context.Context, idExpr string, nameExpr string, join string) ([]models.FilterOption, error) {
+	rows, err := s.db.Query(ctx, fmt.Sprintf(`
+SELECT DISTINCT COALESCE(%s, ''), %s
+FROM execution.token_usage token_usage
+%s
+WHERE %s IS NOT NULL
+ORDER BY 2
+`, idExpr, nameExpr, join, idExpr))
+	if err != nil {
+		return nil, fmt.Errorf("token usage filters: %w", err)
+	}
+	defer rows.Close()
+	var items []models.FilterOption
+	for rows.Next() {
+		var item models.FilterOption
+		if err := rows.Scan(&item.ID, &item.Name); err != nil {
+			return nil, fmt.Errorf("scan token usage filter: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func usageWhere(filters models.UsageFilters) (string, []any) {
+	clauses := []string{}
+	args := []any{}
+	add := func(clause string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf(clause, len(args)))
+	}
+	add("batch_id = $%d", filters.BatchID)
+	add("gym_id = $%d", filters.GymID)
+	add("model_id = $%d", filters.ModelID)
+	add("created_at >= $%d::timestamptz", filters.From)
+	add("created_at <= $%d::timestamptz", filters.To)
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
+}
+
+func leaderboardWhere(filters models.LeaderboardFilters) (string, []any) {
+	clauses := []string{}
+	args := []any{}
+	add := func(clause string, value string) {
+		if value == "" {
+			return
+		}
+		args = append(args, value)
+		clauses = append(clauses, fmt.Sprintf(clause, len(args)))
+	}
+	add("executions.batch_id = $%d", filters.BatchID)
+	add("executions.gym_id = $%d", filters.GymID)
+	add("executions.model_id = $%d", filters.ModelID)
+	add("iterations.created_at >= $%d::timestamptz", filters.From)
+	add("iterations.created_at <= $%d::timestamptz", filters.To)
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
+}
+
+func (s *Store) latestBatchReportReadiness(ctx context.Context, batchID string) models.ReportReadiness {
+	row := s.db.QueryRow(ctx, `
+SELECT id::text, job_type, scope_type, scope_id, format, payload, status, COALESCE(error, ''),
+       COALESCE(generated_artifact_id::text, ''), COALESCE(requested_by::text, ''),
+       created_at::text, COALESCE(started_at::text, ''), COALESCE(completed_at::text, '')
+FROM reports.report_jobs
+WHERE scope_type = 'batch' AND scope_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`, batchID)
+	var job models.ReportJob
+	var payload []byte
+	if err := row.Scan(&job.ID, &job.JobType, &job.ScopeType, &job.ScopeID, &job.Format, &payload, &job.Status, &job.Error, &job.GeneratedArtifactID, &job.RequestedBy, &job.CreatedAt, &job.StartedAt, &job.CompletedAt); err != nil {
+		return defaultReportReadiness()
+	}
+	job.Payload = mapFromJSON(payload)
+	return reportReadinessFromJob(job)
+}
+
+func defaultReportReadiness() models.ReportReadiness {
+	return models.ReportReadiness{Status: "not_configured"}
+}
+
+func reportReadinessFromJob(job models.ReportJob) models.ReportReadiness {
+	return models.ReportReadiness{
+		Status:      job.Status,
+		ReportJobID: job.ID,
+		ArtifactID:  job.GeneratedArtifactID,
+		RequestedAt: job.CreatedAt,
+		CompletedAt: job.CompletedAt,
+		Error:       job.Error,
 	}
 }
 

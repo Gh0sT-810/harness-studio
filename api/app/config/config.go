@@ -28,6 +28,8 @@ func LoadConfig() (*models.Config, error) {
 		ExecutionDispatchTTL:   envInt("EXECUTION_DISPATCH_TIMEOUT_SECONDS", 5),
 		ArtifactServiceBaseURL: env("ARTIFACT_SERVICE_BASE_URL", "http://localhost:8091"),
 		ArtifactServiceTTL:     envInt("ARTIFACT_SERVICE_TIMEOUT_SECONDS", 10),
+		ReportServiceBaseURL:   env("REPORT_SERVICE_BASE_URL", "http://localhost:8092"),
+		ReportServiceTTL:       envInt("REPORT_SERVICE_TIMEOUT_SECONDS", 30),
 	}, nil
 }
 

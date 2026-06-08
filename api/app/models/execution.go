@@ -69,7 +69,7 @@ type BatchSnapshot struct {
 	Executions []Execution     `json:"executions"`
 	Iterations []Iteration     `json:"iterations"`
 	Counts     map[string]int  `json:"counts"`
-	Report     map[string]any  `json:"report"`
+	Report     ReportReadiness `json:"report"`
 	Catalog    SnapshotCatalog `json:"catalog"`
 }
 

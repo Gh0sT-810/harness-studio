@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Boxes, LogOut, Menu, Moon, Shield, Sun, Workflow } from 'lucide-react'
+import { ArrowLeft, BarChart3, Boxes, FileText, Gauge, LogOut, Menu, Moon, Shield, Sun, Workflow } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/contexts/AuthContext'
@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { path: '/gyms', label: 'Gyms', id: 'nav-gyms', icon: Boxes },
   { path: '/batches', label: 'Batches', id: 'nav-batches', icon: Workflow },
+  { path: '/reports', label: 'Reports', id: 'nav-reports', icon: FileText },
+  { path: '/leaderboard', label: 'Leaderboard', id: 'nav-leaderboard', icon: BarChart3 },
+  { path: '/usage', label: 'Usage', id: 'nav-usage', icon: Gauge },
   { path: '/admin', label: 'Admin', id: 'nav-admin', admin: true, icon: Shield },
 ]
 

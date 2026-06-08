@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -21,6 +21,10 @@ export function BatchSnapshotPage() {
     queryFn: () => batchApi.snapshot(id ?? ''),
     enabled: Boolean(id),
     staleTime: Number.POSITIVE_INFINITY,
+  })
+  const createReport = useMutation({
+    mutationFn: () => batchApi.createReport(id ?? ''),
+    onSuccess: () => snapshotQuery.refetch(),
   })
 
   const handleEvent = useCallback((event: BatchEventEnvelope) => {
@@ -90,10 +94,26 @@ export function BatchSnapshotPage() {
           <Card data-id="batch-insights-tabs" className="harness-card-padding">
             <CardHeader>
               <CardTitle>Insights</CardTitle>
-              <CardDescription>Report readiness and model/task insights will attach here in later phases.</CardDescription>
+              <CardDescription>Report readiness, preview, and generated artifact access.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-3">
               <p data-id="report-readiness" className="harness-code-inline w-fit">report={String(snapshot.report?.status ?? 'not_configured')}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button data-id="generate-batch-report" onClick={() => createReport.mutate()} disabled={createReport.isPending}>
+                  {createReport.isPending ? 'Generating report...' : 'Generate report'}
+                </Button>
+                {snapshot.report?.reportJobId ? (
+                  <Button data-id="preview-batch-report" variant="secondary" asChild>
+                    <Link to={`/reports/${snapshot.batch.id}`}>Preview report</Link>
+                  </Button>
+                ) : null}
+                {snapshot.report?.artifactId ? (
+                  <Button data-id="download-batch-report" variant="secondary" asChild>
+                    <a href={`/api/artifacts/${snapshot.report.artifactId}`} target="_blank" rel="noreferrer">Download report</a>
+                  </Button>
+                ) : null}
+              </div>
+              {snapshot.report?.error ? <p className="text-sm text-[var(--danger)]">{snapshot.report.error}</p> : null}
             </CardContent>
           </Card>
 

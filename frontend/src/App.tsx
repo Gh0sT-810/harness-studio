@@ -6,9 +6,13 @@ import { Admin } from '@/pages/Admin'
 import { Batches } from '@/pages/Batches'
 import { BatchSnapshotPage } from '@/pages/BatchSnapshot'
 import { Gyms } from '@/pages/Gyms'
+import { Leaderboard } from '@/pages/Leaderboard'
 import { Login } from '@/pages/Login'
+import { ReportDetail } from '@/pages/ReportDetail'
+import { Reports } from '@/pages/Reports'
 import { TaskEdit } from '@/pages/TaskEdit'
 import { Tasks } from '@/pages/Tasks'
+import { TokenUsage } from '@/pages/TokenUsage'
 
 export function App() {
   return (
@@ -24,6 +28,10 @@ export function App() {
           <Route path="/models" element={<Navigate to="/admin?tab=models" replace />} />
           <Route path="/batches" element={<Batches />} />
           <Route path="/batches/:id/runs" element={<BatchSnapshotPage />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/reports/:batchId" element={<ReportDetail />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/usage" element={<TokenUsage />} />
           <Route element={<ProtectedRoute adminOnly />}>
             <Route path="/admin" element={<Admin />} />
           </Route>

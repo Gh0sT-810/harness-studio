@@ -148,6 +148,41 @@ class PostgresIterationRepository:
                     (artifact_id, iteration_id),
                 )
 
+    def record_token_usage(self, iteration_id: str, usage: dict) -> dict:
+        with connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO execution.token_usage (
+                        iteration_id, execution_id, batch_id, gym_id, task_id, model_id,
+                        provider, model_name, gym_name, task_name,
+                        input_tokens, output_tokens, cost_usd
+                    )
+                    SELECT iterations.id, executions.id, executions.batch_id, executions.gym_id, executions.task_id, executions.model_id,
+                           COALESCE(providers.name, ''), COALESCE(models.display_name, models.model_name, ''),
+                           COALESCE(gyms.name, ''), COALESCE(tasks.task_id, ''),
+                           %s, %s, %s
+                    FROM execution.iterations
+                    JOIN execution.executions ON executions.id = iterations.execution_id
+                    JOIN catalog.model_definitions models ON models.id = executions.model_id
+                    LEFT JOIN catalog.model_providers providers ON providers.id = models.provider_id
+                    JOIN catalog.gyms ON gyms.id = executions.gym_id
+                    LEFT JOIN catalog.tasks ON tasks.id = executions.task_id
+                    WHERE iterations.id = %s
+                    RETURNING id::text, input_tokens, output_tokens, cost_usd::float8
+                    """,
+                    (
+                        int(usage.get("input_tokens", usage.get("inputTokens", 0)) or 0),
+                        int(usage.get("output_tokens", usage.get("outputTokens", 0)) or 0),
+                        float(usage.get("cost_usd", usage.get("costUsd", 0)) or 0),
+                        iteration_id,
+                    ),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise KeyError(iteration_id)
+                return {"id": row[0], "input_tokens": row[1], "output_tokens": row[2], "cost_usd": row[3]}
+
     def recover_expired_leases(self, max_attempts: int) -> list[dict]:
         with connect() as connection:
             with connection.cursor() as cursor:

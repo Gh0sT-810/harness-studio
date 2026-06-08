@@ -1,6 +1,6 @@
 # Harness Studio
 
-Phase 5 establishes the self-hosted harness foundation, core metadata model, execution pipeline, artifact service, and Live Monitor:
+Phase 6 establishes the self-hosted harness foundation, core metadata model, execution pipeline, artifact service, Live Monitor, reports, leaderboard, and token usage monitoring:
 
 - React + TypeScript frontend shell
 - Go public/control API with `GET /health`
@@ -13,6 +13,8 @@ Phase 5 establishes the self-hosted harness foundation, core metadata model, exe
 - Internal artifact-service over local disk and Postgres metadata
 - Playwright screenshot/timeline/log artifact capture
 - Live Monitor playback from timeline artifacts and SSE events
+- Internal report-service for persisted report jobs and artifact-backed JSON/CSV/Excel batch reports
+- Token usage summaries, CSV export, and leaderboard aggregate APIs
 
 The implementation follows the rules in `.cursor/rules`.
 
@@ -27,7 +29,8 @@ The implementation follows the rules in `.cursor/rules`.
 - `worker-execution` claims and runs one iteration at a time with `concurrency=1` and `max-tasks-per-child=1`.
 - `worker-maintenance` recovers expired leases and re-enqueues retryable iterations.
 - `artifact-service` owns local artifact files and metadata; Go proxies public artifact APIs.
-- Report service, full provider adapters, and Studio/QC workflows are later phases.
+- `report-service` owns report job lifecycle, report generation, `report.ready` events, and generated report artifact writes.
+- Full provider adapters and Studio/QC workflows are later phases.
 
 ## Local Setup
 
@@ -43,6 +46,7 @@ Default local endpoints:
 - Go API health: `http://localhost:8080/health`
 - Execution API health: `http://localhost:8090/internal/health`
 - Artifact service health: `http://localhost:8091/internal/health`
+- Report service health: `http://localhost:8092/internal/health`
 
 Default local admin:
 
@@ -62,6 +66,7 @@ make api-test
 make api-vet
 make execution-api-test
 make artifact-service-test
+make report-service-test
 make frontend-lint
 make frontend-build
 make frontend-e2e
@@ -116,6 +121,25 @@ GET /api/batches/{id}/archive        # ZIP of artifacts whose metadata.batchId m
 ```
 
 The internal `artifact-service` owns writes, metadata, local path validation, and archive limits (`ARCHIVE_MAX_FILES`). Workers upload artifacts with `metadata.batchId`, `metadata.executionId`, and `metadata.iterationId` so the Go API can expose snapshots and batch archives without leaking local paths.
+
+## Phase 6 Reports And Analytics Smoke
+
+Phase 6 adds an internal `report-service` that persists `reports.report_jobs`, reads batch execution data, writes generated JSON/CSV/Excel report files through `artifact-service`, and publishes `report.ready` events to the batch Redis stream.
+
+Public report and analytics routes are exposed only through the Go API:
+
+```text
+POST /api/reports                 # create a generic report job
+GET  /api/reports/{id}            # fetch report job status
+POST /api/batches/{id}/report     # create and run a batch report
+GET  /api/batches/{id}/report     # latest batch report job
+GET  /api/usage/summary           # token/cost summary
+GET  /api/usage/export/csv        # token usage CSV export
+GET  /api/usage/filters           # available usage filters
+GET  /api/leaderboard             # model/gym aggregate metrics
+```
+
+Batch snapshots now include report readiness (`status`, `reportJobId`, `artifactId`, timestamps, and `error`) instead of a static placeholder. Token usage is ready for provider adapters through `execution-api` repository helpers; adapters should persist usage after model calls return usage payloads.
 
 ## Volumes
 

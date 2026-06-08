@@ -84,7 +84,55 @@ export type BatchSnapshot = {
     artifacts?: ArtifactSummary[]
   }>
   counts: Record<string, number>
-  report?: Record<string, unknown>
+  report?: ReportReadiness
+}
+
+export type ReportReadiness = {
+  status: string
+  reportJobId?: string
+  artifactId?: string
+  requestedAt?: string
+  completedAt?: string
+  error?: string
+}
+
+export type ReportJob = {
+  id: string
+  jobType?: string
+  scopeType?: string
+  scopeId?: string
+  format?: string
+  status: string
+  generatedArtifactId?: string
+  error?: string
+  createdAt?: string
+  startedAt?: string
+  completedAt?: string
+}
+
+export type TokenUsageSummary = {
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  totalCostUsd: number
+  runs: number
+  byModel: Array<{ id: string; name: string; totalTokens: number; totalCostUsd: number; runs: number }>
+  byGym: Array<{ id: string; name: string; totalTokens: number; totalCostUsd: number; runs: number }>
+}
+
+export type LeaderboardRow = {
+  modelId: string
+  modelName: string
+  gymId: string
+  gymName: string
+  runs: number
+  passed: number
+  failed: number
+  passRate: number
+  averageSteps: number
+  averageSeconds: number
+  totalTokens: number
+  totalCostUsd: number
 }
 
 export type ArtifactSummary = {
@@ -222,6 +270,27 @@ export const batchApi = {
     ),
   snapshot: (batchId: string) => request<BatchSnapshot>(`/api/batches/${batchId}/snapshot`),
   cancel: (batchId: string) => request<{ id: string }>(`/api/batches/${batchId}/cancel`, { method: 'POST' }),
+  createReport: (batchId: string) => request<ReportJob>(`/api/batches/${batchId}/report`, { method: 'POST' }),
+  report: (batchId: string) => request<ReportJob>(`/api/batches/${batchId}/report`),
+}
+
+export const reportApi = {
+  create: (payload: { scopeId: string; scopeType?: string; jobType?: string; format?: string }) =>
+    request<ReportJob>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  get: (id: string) => request<ReportJob>(`/api/reports/${id}`),
+}
+
+export const usageApi = {
+  summary: () => request<TokenUsageSummary>('/api/usage/summary'),
+  filters: () => request<{ batches: Array<{ id: string; name: string }>; gyms: Array<{ id: string; name: string }>; models: Array<{ id: string; name: string }> }>('/api/usage/filters'),
+  csvUrl: () => `${apiBaseUrl}/api/usage/export/csv`,
+}
+
+export const leaderboardApi = {
+  list: () => request<LeaderboardRow[]>('/api/leaderboard'),
 }
 
 export const api = {
@@ -230,4 +299,7 @@ export const api = {
   tasks: taskApi,
   models: modelApi,
   batches: batchApi,
+  reports: reportApi,
+  usage: usageApi,
+  leaderboard: leaderboardApi,
 }

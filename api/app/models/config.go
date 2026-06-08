@@ -15,4 +15,6 @@ type Config struct {
 	ExecutionDispatchTTL   int
 	ArtifactServiceBaseURL string
 	ArtifactServiceTTL     int
+	ReportServiceBaseURL   string
+	ReportServiceTTL       int
 }

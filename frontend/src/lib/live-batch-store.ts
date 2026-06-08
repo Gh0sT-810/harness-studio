@@ -96,7 +96,17 @@ export function applyBatchEvent(state: LiveBatchState, event: BatchEventEnvelope
   }
 
   if (event.type === 'report.ready') {
-    return { ...state, report: { ...state.report, status: 'ready', ...event.payload }, recentEvents }
+    return {
+      ...state,
+      report: {
+        ...state.report,
+        status: typeof event.payload.status === 'string' ? event.payload.status : 'completed',
+        reportJobId: typeof event.payload.reportId === 'string' ? event.payload.reportId : state.report?.reportJobId,
+        artifactId: typeof event.payload.artifactId === 'string' ? event.payload.artifactId : state.report?.artifactId,
+        completedAt: typeof event.payload.completedAt === 'string' ? event.payload.completedAt : state.report?.completedAt,
+      },
+      recentEvents,
+    }
   }
 
   return { ...state, recentEvents }

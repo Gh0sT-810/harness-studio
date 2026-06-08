@@ -112,7 +112,7 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Batch, executions, iterations, counts, catalog metadata, and report placeholder
+          description: Batch, executions, iterations, counts, catalog metadata, and report readiness
   /api/batches/{id}/events:
     get:
       summary: Stream batch events through Server-Sent Events
@@ -251,6 +251,95 @@ paths:
           description: ZIP archive proxied from artifact-service
         "404":
           description: Batch artifacts were not found
+  /api/reports:
+    post:
+      summary: Create a report job
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Report job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+  /api/reports/{id}:
+    get:
+      summary: Get report job status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report job status
+  /api/batches/{id}/report:
+    post:
+      summary: Create and run a batch report job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Report generation requested
+    get:
+      summary: Get latest batch report job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest batch report job
+  /api/usage/summary:
+    get:
+      summary: Token usage summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token usage summary by model and gym
+  /api/usage/export/csv:
+    get:
+      summary: Export token usage CSV
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token usage CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+  /api/usage/filters:
+    get:
+      summary: Token usage filter options
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Available usage filters
+  /api/leaderboard:
+    get:
+      summary: Leaderboard aggregate metrics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Model and gym performance leaderboard
 components:
   securitySchemes:
     bearerAuth:
@@ -307,6 +396,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TimelineStep"
+    ReportJob:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        generatedArtifactId:
+          type: string
+    TokenUsageSummary:
+      type: object
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        totalCostUsd:
+          type: number
+    LeaderboardRow:
+      type: object
+      properties:
+        modelId:
+          type: string
+        gymId:
+          type: string
+        passRate:
+          type: number
+        totalTokens:
+          type: integer
     BatchEventEnvelope:
       type: object
       required: [version, type, id, batch_id, occurred_at, payload]

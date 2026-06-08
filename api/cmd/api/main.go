@@ -67,10 +67,12 @@ func main() {
 	}
 	catalogService := services.NewCatalogService(store)
 	eventService := services.NewEventService(redisClient)
+	analyticsService := services.NewAnalyticsService(store)
 	executionDispatcher := services.NewHTTPExecutionDispatcher(cfg.ExecutionAPIBaseURL, time.Duration(cfg.ExecutionDispatchTTL)*time.Second)
 	executionService := services.NewExecutionService(store, eventService, executionDispatcher)
 	artifactProxy := services.NewHTTPArtifactProxy(cfg.ArtifactServiceBaseURL, time.Duration(cfg.ArtifactServiceTTL)*time.Second)
-	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService, artifactProxy)
+	reportProxy := services.NewHTTPReportProxy(cfg.ReportServiceBaseURL, time.Duration(cfg.ReportServiceTTL)*time.Second)
+	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService, analyticsService, artifactProxy, reportProxy)
 	routes.SetupRoutes(router, serviceContainer)
 
 	if err := router.Run(cfg.ServerAddress); err != nil {

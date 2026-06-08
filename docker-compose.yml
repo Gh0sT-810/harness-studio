@@ -90,6 +90,33 @@ services:
     networks:
       - harness
 
+  report-service:
+    build:
+      context: ./report-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://harness:harness_dev_password@postgres:5432/harness?sslmode=disable}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
+    ports:
+      - "${REPORT_SERVICE_PORT:-8092}:8092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      artifact-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8092/internal/health').read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harness
+
   api:
     build:
       context: ./api
@@ -110,6 +137,8 @@ services:
       EXECUTION_DISPATCH_TIMEOUT_SECONDS: ${EXECUTION_DISPATCH_TIMEOUT_SECONDS:-5}
       ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
       ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
+      REPORT_SERVICE_BASE_URL: ${REPORT_SERVICE_BASE_URL:-http://report-service:8092}
+      REPORT_SERVICE_TIMEOUT_SECONDS: ${REPORT_SERVICE_TIMEOUT_SECONDS:-30}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -120,6 +149,8 @@ services:
       execution-api:
         condition: service_healthy
       artifact-service:
+        condition: service_healthy
+      report-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
