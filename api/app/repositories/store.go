@@ -578,6 +578,32 @@ RETURNING key, value, updated_at::text
 	return item, nil
 }
 
+func (s *Store) DefaultModelID(ctx context.Context) (string, error) {
+	var configured string
+	err := s.db.QueryRow(ctx, `
+SELECT COALESCE(value->>'defaultModelId', '')
+FROM catalog.system_config
+WHERE key = 'runtime'
+`).Scan(&configured)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("get runtime default model: %w", err)
+	}
+	if configured != "" {
+		return configured, nil
+	}
+	var id string
+	if err := s.db.QueryRow(ctx, `
+SELECT id::text
+FROM catalog.model_definitions
+WHERE enabled = true
+ORDER BY is_default DESC, created_at ASC
+LIMIT 1
+`).Scan(&id); err != nil {
+		return "", fmt.Errorf("get default model: %w", err)
+	}
+	return id, nil
+}
+
 func (s *Store) CreateBatch(ctx context.Context, req models.BatchCreateRequest, createdBy string) (models.Batch, error) {
 	if req.IterationCount < 1 {
 		req.IterationCount = 1

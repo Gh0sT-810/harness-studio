@@ -26,7 +26,9 @@ def recover_leases(
             {"status": iteration["status"]},
         )
         if iteration["status"] == "retrying":
-            task_publisher.enqueue_iteration(iteration["id"])
+            celery_task_id = task_publisher.enqueue_iteration(iteration["id"])
+            if hasattr(repository, "mark_enqueued"):
+                repository.mark_enqueued(iteration["id"], celery_task_id)
             reenqueued += 1
 
     return {"recovered": len(recovered), "reenqueued": reenqueued}

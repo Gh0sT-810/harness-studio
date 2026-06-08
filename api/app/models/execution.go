@@ -18,7 +18,7 @@ type BatchCreateRequest struct {
 	Name           string   `json:"name" binding:"required"`
 	GymID          string   `json:"gymId" binding:"required"`
 	TaskIDs        []string `json:"taskIds" binding:"required"`
-	ModelIDs       []string `json:"modelIds" binding:"required"`
+	ModelIDs       []string `json:"modelIds"`
 	IterationCount int      `json:"iterationCount" binding:"required"`
 	RerunEnabled   bool     `json:"rerunEnabled"`
 }

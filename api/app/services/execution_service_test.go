@@ -14,6 +14,7 @@ type fakeExecutionStore struct {
 	cancelIDs  []string
 	createReq  models.BatchCreateRequest
 	createdBy  string
+	defaultID  string
 	snapshot   models.BatchSnapshot
 	listResult []models.Batch
 }
@@ -34,6 +35,10 @@ func (f *fakeExecutionStore) GetBatchSnapshot(context.Context, string) (models.B
 
 func (f *fakeExecutionStore) ListCancelableIterationIDs(context.Context, string) ([]string, error) {
 	return f.cancelIDs, nil
+}
+
+func (f *fakeExecutionStore) DefaultModelID(context.Context) (string, error) {
+	return f.defaultID, nil
 }
 
 type fakeExecutionDispatcher struct {
@@ -61,6 +66,16 @@ func TestExecutionService_CreateBatchDispatchesCreatedBatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "batch-1", batch.ID)
 	assert.Equal(t, "batch-1", dispatcher.dispatchedBatch)
+}
+
+func TestExecutionService_CreateBatchUsesDefaultModelWhenModelIDsOmitted(t *testing.T) {
+	store := &fakeExecutionStore{batch: models.Batch{ID: "batch-1", Status: "pending"}, defaultID: "model-default"}
+	service := NewExecutionService(store, nil, nil)
+
+	_, err := service.CreateBatch(context.Background(), models.BatchCreateRequest{Name: "Batch", TaskIDs: []string{"task-1"}, IterationCount: 1}, "user-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"model-default"}, store.createReq.ModelIDs)
 }
 
 func TestExecutionService_CancelBatchCancelsEachCancelableIteration(t *testing.T) {

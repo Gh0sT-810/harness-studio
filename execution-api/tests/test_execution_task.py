@@ -193,3 +193,31 @@ def test_execute_iteration_records_failed_runner_as_failed_iteration():
     assert repository.completed[-1][2] == "failed"
     assert repository.completed[-1][3]["error"] == "artifact upload failed"
     assert events.iteration_events[-1] == ("iteration.completed", "iteration-1", {"status": "failed"})
+
+
+def test_execute_iteration_stops_before_runner_when_cancel_requested_after_claim():
+    class CancelledRepository(FakeRepository):
+        def get_iteration(self, iteration_id):
+            iteration = super().get_iteration(iteration_id)
+            iteration["cancel_requested"] = True
+            return iteration
+
+    class RunnerThatShouldNotRun:
+        def run(self, iteration):
+            raise AssertionError("runner should not run after cancellation")
+
+    repository = CancelledRepository()
+    events = FakeEvents()
+
+    result = execute_iteration(
+        "iteration-1",
+        repository=repository,
+        event_publisher=events,
+        runner=RunnerThatShouldNotRun(),
+        worker_id="worker-1",
+        lease_seconds=60,
+    )
+
+    assert result == {"id": "iteration-1", "status": "cancelled"}
+    assert repository.completed[-1][2] == "cancelled"
+    assert events.iteration_events[-1] == ("iteration.completed", "iteration-1", {"status": "cancelled"})

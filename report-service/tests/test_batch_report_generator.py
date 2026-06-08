@@ -32,9 +32,9 @@ class FakeRepository:
     def __init__(self):
         self.completed = []
 
-    def mark_completed(self, job_id, artifact_id):
-        self.completed.append((job_id, artifact_id))
-        return {"id": job_id, "status": "completed", "generatedArtifactId": artifact_id}
+    def mark_completed(self, job_id, artifact_id, artifacts=None):
+        self.completed.append((job_id, artifact_id, artifacts))
+        return {"id": job_id, "status": "completed", "generatedArtifactId": artifact_id, "payload": {"artifacts": artifacts}}
 
 
 class FakeEvents:
@@ -69,7 +69,17 @@ def test_batch_report_generator_writes_json_csv_xlsx_and_publishes_ready_event()
     assert artifact_client.saved[0][5] == "application/json"
     assert artifact_client.saved[1][5] == "text/csv"
     assert artifact_client.saved[2][5] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    assert repository.completed == [("report-1", "artifact-1")]
+    assert repository.completed == [
+        (
+            "report-1",
+            "artifact-1",
+            {
+                "json": {"id": "artifact-1", "filename": "batch_report.json", "contentType": "application/json"},
+                "csv": {"id": "artifact-2", "filename": "batch_report.csv", "contentType": "text/csv"},
+                "xlsx": {"id": "artifact-3", "filename": "batch_report.xlsx", "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+            },
+        )
+    ]
     assert events.events == [
         (
             "report.ready",
@@ -78,3 +88,4 @@ def test_batch_report_generator_writes_json_csv_xlsx_and_publishes_ready_event()
         )
     ]
     assert completed["generatedArtifactId"] == "artifact-1"
+    assert completed["payload"]["artifacts"]["csv"]["id"] == "artifact-2"

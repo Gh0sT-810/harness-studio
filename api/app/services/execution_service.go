@@ -12,6 +12,7 @@ type ExecutionStore interface {
 	ListBatches(ctx context.Context) ([]models.Batch, error)
 	GetBatchSnapshot(ctx context.Context, batchID string) (models.BatchSnapshot, error)
 	ListCancelableIterationIDs(ctx context.Context, batchID string) ([]string, error)
+	DefaultModelID(ctx context.Context) (string, error)
 }
 
 type ExecutionServiceInterface interface {
@@ -32,6 +33,13 @@ func NewExecutionService(store ExecutionStore, eventService EventServiceInterfac
 }
 
 func (s *ExecutionService) CreateBatch(ctx context.Context, req models.BatchCreateRequest, createdBy string) (models.Batch, error) {
+	if len(req.ModelIDs) == 0 {
+		defaultModelID, err := s.store.DefaultModelID(ctx)
+		if err != nil {
+			return models.Batch{}, err
+		}
+		req.ModelIDs = []string{defaultModelID}
+	}
 	batch, err := s.store.CreateBatch(ctx, req, createdBy)
 	if err != nil {
 		return models.Batch{}, err

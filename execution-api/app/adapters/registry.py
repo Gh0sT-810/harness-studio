@@ -1,5 +1,12 @@
 from collections.abc import Callable
 
+from app.adapters.cua import (
+    AnthropicComputerUseAdapter,
+    EmbeddingAdapter,
+    GeminiComputerUseAdapter,
+    LlmGraderAdapter,
+    OpenAIResponsesComputerAdapter,
+)
 from app.adapters.base import AdapterResult, ModelAdapter
 from app.models.registry import ModelDefinition
 
@@ -9,7 +16,17 @@ class TextOnlyAdapter:
         self.model = model
 
     def generate(self, prompt: str, context: dict | None = None) -> AdapterResult:
-        return AdapterResult(content=prompt, usage={})
+        input_tokens = len(prompt.split())
+        output_tokens = input_tokens
+        return AdapterResult(
+            content=prompt,
+            usage={
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+                "cost_usd": 0,
+            },
+        )
 
 
 class StubModelAdapter(TextOnlyAdapter):
@@ -19,12 +36,13 @@ class StubModelAdapter(TextOnlyAdapter):
 class AdapterRegistry:
     def __init__(self, factories: dict[str, Callable[[ModelDefinition], ModelAdapter]] | None = None):
         self.factories = {
+            "local": TextOnlyAdapter,
             "text_only": TextOnlyAdapter,
-            "llm_grader": StubModelAdapter,
-            "embedding": StubModelAdapter,
-            "openai_responses_computer": StubModelAdapter,
-            "anthropic_computer_use": StubModelAdapter,
-            "gemini_computer_use": StubModelAdapter,
+            "llm_grader": LlmGraderAdapter,
+            "embedding": EmbeddingAdapter,
+            "openai_responses_computer": OpenAIResponsesComputerAdapter,
+            "anthropic_computer_use": AnthropicComputerUseAdapter,
+            "gemini_computer_use": GeminiComputerUseAdapter,
             **(factories or {}),
         }
 

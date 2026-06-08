@@ -7,10 +7,14 @@ class FakeRepository:
             {"id": "iteration-1", "execution_id": "execution-1", "batch_id": "batch-1", "status": "retrying"},
             {"id": "iteration-2", "execution_id": "execution-2", "batch_id": "batch-1", "status": "crashed"},
         ]
+        self.enqueued = []
 
     def recover_expired_leases(self, max_attempts):
         assert max_attempts == 2
         return self.recovered
+
+    def mark_enqueued(self, iteration_id, celery_task_id):
+        self.enqueued.append((iteration_id, celery_task_id))
 
 
 class FakePublisher:
@@ -48,3 +52,4 @@ def test_recover_leases_publishes_expiry_and_reenqueues_retryable_iterations():
         ("iteration.lease_expired", "iteration-2", {"status": "crashed"}),
     ]
     assert publisher.enqueued == ["iteration-1"]
+    assert repository.enqueued == [("iteration-1", "celery-iteration-1")]

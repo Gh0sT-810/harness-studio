@@ -30,6 +30,29 @@ def execute_iteration(
         model = ModelDefinition.from_mapping(iteration["model_config"])
         adapter = AdapterRegistry().resolve(model)
         iteration["model_config"] = {**iteration["model_config"], "resolved_adapter": adapter.__class__.__name__}
+        iteration["model_adapter"] = adapter
+    if iteration.get("cancel_requested"):
+        completed = repository.complete_iteration(
+            iteration_id,
+            worker_id,
+            "cancelled",
+            {"runner": runner.__class__.__name__, "cancelled": True},
+            {"status": "cancelled"},
+            "Iteration was cancelled before runner execution.",
+            0,
+        )
+        event_publisher.publish_iteration_event("iteration.completed", iteration, {"status": completed["status"]})
+        event_publisher.publish_batch_event(
+            "execution.updated",
+            iteration["batch_id"],
+            {"execution_id": iteration["execution_id"], "status": completed["status"]},
+        )
+        event_publisher.publish_batch_event(
+            "batch.summary_updated",
+            iteration["batch_id"],
+            {"counts": repository.batch_counts(iteration["batch_id"])},
+        )
+        return completed
 
     event_publisher.publish_iteration_event("iteration.started", iteration, {"status": "executing"})
     try:

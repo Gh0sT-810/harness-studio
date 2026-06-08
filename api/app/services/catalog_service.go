@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
 )
@@ -135,10 +136,7 @@ func (s *CatalogService) TestModelProvider(ctx context.Context, id string) (mode
 	if err != nil {
 		return models.ModelTestResult{}, err
 	}
-	if provider.AdapterKey == "" {
-		return models.ModelTestResult{Status: "error", Message: "adapter key is required"}, nil
-	}
-	return models.ModelTestResult{Status: "ok", Message: "provider config valid"}, nil
+	return validateModelProvider(provider), nil
 }
 
 func (s *CatalogService) CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
@@ -174,4 +172,30 @@ func (s *CatalogService) GetSystemConfig(ctx context.Context, key string) (model
 
 func (s *CatalogService) SetSystemConfig(ctx context.Context, key string, value map[string]any) (models.SystemConfig, error) {
 	return s.store.SetSystemConfig(ctx, key, value)
+}
+
+func validateModelProvider(provider models.ModelProvider) models.ModelTestResult {
+	if provider.AdapterKey == "" {
+		return models.ModelTestResult{Status: "error", Message: "adapter key is required"}
+	}
+	supported := map[string]bool{
+		"local":                     true,
+		"text_only":                 true,
+		"llm_grader":                true,
+		"embedding":                 true,
+		"openai_responses_computer": true,
+		"anthropic_computer_use":    true,
+		"gemini_computer_use":       true,
+	}
+	if !supported[provider.AdapterKey] {
+		return models.ModelTestResult{Status: "error", Message: "unsupported adapter key: " + provider.AdapterKey}
+	}
+	if provider.BaseURL != "" && !strings.HasPrefix(provider.BaseURL, "http://") && !strings.HasPrefix(provider.BaseURL, "https://") {
+		return models.ModelTestResult{Status: "error", Message: "baseUrl must start with http:// or https://"}
+	}
+	requiresSecret := provider.AdapterKey == "openai_responses_computer" || provider.AdapterKey == "anthropic_computer_use" || provider.AdapterKey == "gemini_computer_use" || provider.AdapterKey == "embedding"
+	if requiresSecret && provider.SecretRef == "" {
+		return models.ModelTestResult{Status: "error", Message: "secretRef is required for provider-backed adapters"}
+	}
+	return models.ModelTestResult{Status: "ok", Message: "provider config valid; mock connectivity check passed"}
 }
