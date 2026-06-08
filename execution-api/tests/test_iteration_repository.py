@@ -64,6 +64,53 @@ def test_claim_iteration_is_atomic_and_sets_lease(monkeypatch):
     }
 
 
+def test_get_iteration_hydrates_cancellation_and_verification_fields(monkeypatch):
+    cursor = FakeCursor([
+        (
+            "iteration-1",
+            "execution-1",
+            "batch-1",
+            "executing",
+            True,
+            "https://example.com",
+            "Do the thing",
+            "task-1",
+            {"forceFail": True},
+            {"seed": 1},
+            {"expected": {"ok": True}},
+            "/tmp/verifier.py",
+            "grader_config",
+            "model-1",
+            "provider-1",
+            "text",
+            "text_only",
+            "local-test-model",
+            "Local Test Model",
+            {"text": True},
+            {},
+            {},
+            60,
+            0,
+            "",
+        )
+    ])
+    patch_connect(monkeypatch, cursor)
+
+    iteration = PostgresIterationRepository().get_iteration("iteration-1")
+
+    sql, params = cursor.executed[0]
+    assert "iterations.cancel_requested" in sql
+    assert "executions.snapshot_grader_config" in sql
+    assert params == ("iteration-1",)
+    assert iteration["cancel_requested"] is True
+    assert iteration["snapshot_verification_strategy"] == "grader_config"
+    assert iteration["snapshot_grader_config"] == {"forceFail": True}
+    assert iteration["snapshot_simulator_config"] == {"seed": 1}
+    assert iteration["snapshot_db_json_validator"] == {"expected": {"ok": True}}
+    assert iteration["snapshot_verifier_path"] == "/tmp/verifier.py"
+    assert iteration["model_config"]["adapter_key"] == "text_only"
+
+
 def test_heartbeat_only_updates_claimed_worker(monkeypatch):
     cursor = FakeCursor([(True,)])
     patch_connect(monkeypatch, cursor)

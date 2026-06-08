@@ -32,7 +32,7 @@ class BatchReportGenerator:
             {**metadata, "filename": "batch_report.json", "contentType": "application/json"},
             "application/json",
         )
-        self.artifact_client.save_bytes(
+        csv_artifact = self.artifact_client.save_bytes(
             scope,
             "report",
             "batch_report.csv",
@@ -40,7 +40,7 @@ class BatchReportGenerator:
             {**metadata, "filename": "batch_report.csv", "contentType": "text/csv"},
             "text/csv",
         )
-        self.artifact_client.save_bytes(
+        xlsx_artifact = self.artifact_client.save_bytes(
             scope,
             "report",
             "batch_report.xlsx",
@@ -48,7 +48,12 @@ class BatchReportGenerator:
             {**metadata, "filename": "batch_report.xlsx", "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        completed = self.repository.mark_completed(job["id"], json_artifact["id"])
+        artifacts = {
+            "json": {"id": json_artifact["id"], "filename": "batch_report.json", "contentType": "application/json"},
+            "csv": {"id": csv_artifact["id"], "filename": "batch_report.csv", "contentType": "text/csv"},
+            "xlsx": {"id": xlsx_artifact["id"], "filename": "batch_report.xlsx", "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+        }
+        completed = self.repository.mark_completed(job["id"], json_artifact["id"], artifacts)
         self.event_publisher.publish_batch_event(
             "report.ready",
             batch_id,

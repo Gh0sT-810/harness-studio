@@ -45,9 +45,15 @@ services:
       MAINTENANCE_QUEUE: ${MAINTENANCE_QUEUE:-maintenance}
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-30}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
       ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
       ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
+      CUA_MAX_STEPS: ${CUA_MAX_STEPS:-20}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     ports:
       - "${EXECUTION_API_PORT:-8090}:8090"
     depends_on:
@@ -177,9 +183,15 @@ services:
       WORKER_ID: worker-execution
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-30}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
       ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
       ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
+      CUA_MAX_STEPS: ${CUA_MAX_STEPS:-20}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -211,6 +223,7 @@ services:
       WORKER_ID: worker-maintenance
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-30}
       MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
       ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
       ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
@@ -221,6 +234,41 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from app.celery_app import celery_app; raise SystemExit(0 if celery_app else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harness
+
+  worker-scheduler:
+    build:
+      context: ./execution-api
+    restart: unless-stopped
+    command: ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=INFO"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://harness:harness_dev_password@postgres:5432/harness?sslmode=disable}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      EXECUTION_QUEUE: ${EXECUTION_QUEUE:-execution}
+      MAINTENANCE_QUEUE: ${MAINTENANCE_QUEUE:-maintenance}
+      WORKER_ID: worker-scheduler
+      LEASE_SECONDS: ${LEASE_SECONDS:-60}
+      HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-30}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-2}
+      ARTIFACT_SERVICE_BASE_URL: ${ARTIFACT_SERVICE_BASE_URL:-http://artifact-service:8091}
+      ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker-maintenance:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from app.celery_app import celery_app; raise SystemExit(0 if celery_app and celery_app.conf.beat_schedule else 1)\""]
       interval: 30s
       timeout: 5s
       retries: 3

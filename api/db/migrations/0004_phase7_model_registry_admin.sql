@@ -5,6 +5,9 @@ ALTER TABLE catalog.model_providers
   ADD COLUMN IF NOT EXISTS secret_ref TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
+ALTER TABLE catalog.model_providers
+  DROP CONSTRAINT IF EXISTS model_providers_adapter_key_key;
+
 UPDATE catalog.model_providers
 SET key = COALESCE(NULLIF(key, ''), adapter_key),
     display_name = COALESCE(NULLIF(display_name, ''), name)

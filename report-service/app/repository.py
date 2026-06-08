@@ -96,18 +96,20 @@ class ReportJobRepository:
             (job_id,),
         )
 
-    def mark_completed(self, job_id: str, artifact_id: str) -> dict:
+    def mark_completed(self, job_id: str, artifact_id: str, artifacts: dict | None = None) -> dict:
+        payload_update = json.dumps({"artifacts": artifacts or {}})
         return self._update(
             """
             UPDATE reports.report_jobs
             SET status = 'completed',
                 generated_artifact_id = %s,
+                payload = payload || %s::jsonb,
                 completed_at = now(),
                 error = ''
             WHERE id = %s
             RETURNING {columns}
             """,
-            (artifact_id, job_id),
+            (artifact_id, payload_update, job_id),
         )
 
     def mark_failed(self, job_id: str, error: str) -> dict:

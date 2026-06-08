@@ -13,11 +13,17 @@ class Settings(BaseSettings):
     worker_id: str = "execution-api"
     lease_seconds: int = 60
     heartbeat_seconds: int = 5
+    maintenance_interval_seconds: int = 30
     max_attempts: int = 2
     artifact_service_base_url: str = "http://localhost:8091"
     artifact_service_timeout_seconds: int = 10
     capture_timeout_seconds: int = 20
     screenshot_format: str = "png"
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+    google_api_key: str = ""
+    cua_max_steps: int = 20
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
