@@ -83,6 +83,8 @@ class ComputerUseAdapter:
             computer.drag(args.get("path", []))
         elif action_name == "wait":
             computer.wait(int(args.get("ms", 1000) or 1000))
+        elif action_name == "screenshot":
+            pass
         else:
             raise RuntimeError(f"unsupported computer action: {action_name}")
         return {"provider": self.provider, "action": action_name, "args": args}
@@ -369,6 +371,7 @@ class _OpenAIResponsesClient:
             model=kwargs["model"],
             input=input_payload,
             previous_response_id=kwargs.get("previous_response_id"),
+			truncation="auto",
             tools=[{"type": "computer_use_preview", "display_width": 1280, "display_height": 800, "environment": "browser"}],
         )
         return response.model_dump()

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Gh0sT-810/harness-studio/api/app/events"
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
@@ -13,6 +14,8 @@ type ExecutionStore interface {
 	GetBatchSnapshot(ctx context.Context, batchID string) (models.BatchSnapshot, error)
 	ListCancelableIterationIDs(ctx context.Context, batchID string) ([]string, error)
 	DefaultModelID(ctx context.Context) (string, error)
+	GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error)
+	GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error)
 }
 
 type ExecutionServiceInterface interface {
@@ -39,6 +42,9 @@ func (s *ExecutionService) CreateBatch(ctx context.Context, req models.BatchCrea
 			return models.Batch{}, err
 		}
 		req.ModelIDs = []string{defaultModelID}
+	}
+	if err := s.validateBatchModels(ctx, req.ModelIDs); err != nil {
+		return models.Batch{}, err
 	}
 	batch, err := s.store.CreateBatch(ctx, req, createdBy)
 	if err != nil {
@@ -72,6 +78,27 @@ func (s *ExecutionService) CreateBatch(ctx context.Context, req models.BatchCrea
 	}
 
 	return batch, nil
+}
+
+func (s *ExecutionService) validateBatchModels(ctx context.Context, modelIDs []string) error {
+	for _, modelID := range modelIDs {
+		model, err := s.store.GetModelDefinition(ctx, modelID)
+		if err != nil {
+			return err
+		}
+		if !model.Enabled {
+			return errors.New("model is disabled: " + model.DisplayName)
+		}
+		provider, err := s.store.GetModelProvider(ctx, model.ProviderID)
+		if err != nil {
+			return err
+		}
+		result := validateModelCompatibility(model, provider)
+		if result.Status == "error" {
+			return errors.New(result.Message)
+		}
+	}
+	return nil
 }
 
 func (s *ExecutionService) ListBatches(ctx context.Context) ([]models.Batch, error) {

@@ -7,7 +7,7 @@ from app.adapters.cua import (
     LlmGraderAdapter,
     OpenAIResponsesComputerAdapter,
 )
-from app.adapters.base import AdapterResult, ModelAdapter
+from app.adapters.base import AdapterConfigurationError, AdapterResult, ModelAdapter
 from app.models.registry import ModelDefinition
 
 
@@ -47,7 +47,21 @@ class AdapterRegistry:
         }
 
     def resolve(self, model: ModelDefinition) -> ModelAdapter:
+        validate_model_contract(model)
         factory = self.factories.get(model.adapter_key)
         if factory is None:
             raise KeyError(f"unknown model adapter: {model.adapter_key}")
         return factory(model)
+
+
+def validate_model_contract(model: ModelDefinition) -> None:
+    if model.adapter_key == "openai_responses_computer":
+        tool_mode = str(model.config.get("toolMode") or "computer_use_preview")
+        if tool_mode != "computer_use_preview":
+            raise AdapterConfigurationError(
+                "openai_responses_computer currently supports toolMode computer_use_preview only"
+            )
+        if model.model_name != "computer-use-preview":
+            raise AdapterConfigurationError(
+                f"openai_responses_computer with computer_use_preview requires computer-use-preview, got {model.model_name}"
+            )

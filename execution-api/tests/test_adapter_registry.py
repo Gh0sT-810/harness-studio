@@ -95,7 +95,7 @@ def test_adapter_registry_resolves_provider_backed_adapters_to_concrete_implemen
         provider_id="provider-1",
         provider_key=adapter_key,
         adapter_key=adapter_key,
-        model_name="provider-model",
+		model_name="computer-use-preview" if adapter_key == "openai_responses_computer" else "provider-model",
         display_name="Provider Model",
         capabilities={},
         config={},
@@ -108,6 +108,46 @@ def test_adapter_registry_resolves_provider_backed_adapters_to_concrete_implemen
 
     assert not isinstance(adapter, StubModelAdapter)
     assert adapter.model == model
+
+
+def test_adapter_registry_rejects_gpt41_for_openai_computer_preview():
+    model = ModelDefinition(
+        id="model-1",
+        provider_id="provider-1",
+        provider_key="openai",
+        adapter_key="openai_responses_computer",
+        model_name="gpt-4.1",
+        display_name="GPT 4.1",
+        capabilities={},
+        config={},
+        cost_config={},
+        timeout_seconds=60,
+        secret_ref="OPENAI_API_KEY",
+    )
+    error_type = getattr(adapter_base, "AdapterConfigurationError", RuntimeError)
+
+    with pytest.raises(error_type, match="computer-use-preview"):
+        AdapterRegistry().resolve(model)
+
+
+def test_adapter_registry_accepts_openai_computer_preview_model():
+    model = ModelDefinition(
+        id="model-1",
+        provider_id="provider-1",
+        provider_key="openai",
+        adapter_key="openai_responses_computer",
+        model_name="computer-use-preview",
+        display_name="OpenAI Computer Use Preview",
+        capabilities={},
+        config={},
+        cost_config={},
+        timeout_seconds=60,
+        secret_ref="OPENAI_API_KEY",
+    )
+
+    adapter = AdapterRegistry().resolve(model)
+
+    assert isinstance(adapter, OpenAIResponsesComputerAdapter)
 
 
 @pytest.mark.parametrize(
@@ -129,7 +169,7 @@ def test_provider_backed_computer_adapters_report_missing_credentials(adapter_ke
         provider_id="provider-1",
         provider_key=adapter_key,
         adapter_key=adapter_key,
-        model_name="provider-model",
+		model_name="computer-use-preview" if adapter_key == "openai_responses_computer" else "provider-model",
         display_name="Provider Model",
         capabilities={},
         config={},

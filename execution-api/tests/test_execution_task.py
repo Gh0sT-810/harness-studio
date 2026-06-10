@@ -1,3 +1,5 @@
+import time
+
 from app.runners.base import RunnerResult, RunnerStep
 from app.tasks.execution import execute_iteration
 
@@ -102,6 +104,23 @@ class FailingRunner:
         raise RuntimeError("artifact upload failed")
 
 
+class SlowRunner:
+    def __init__(self, repository):
+        self.repository = repository
+
+    def run(self, iteration):
+        deadline = time.monotonic() + 1
+        while not self.repository.heartbeats and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return RunnerResult(
+            status="passed",
+            result_data={"runner": "slow"},
+            verification_details={"strategy": "slow"},
+            verification_comments="heartbeat kept lease alive",
+            steps=[],
+        )
+
+
 class FakeEvents:
     def __init__(self):
         self.iteration_events = []
@@ -193,6 +212,24 @@ def test_execute_iteration_records_failed_runner_as_failed_iteration():
     assert repository.completed[-1][2] == "failed"
     assert repository.completed[-1][3]["error"] == "artifact upload failed"
     assert events.iteration_events[-1] == ("iteration.completed", "iteration-1", {"status": "failed"})
+
+
+def test_execute_iteration_heartbeats_while_runner_is_active():
+    repository = FakeRepository()
+    events = FakeEvents()
+
+    result = execute_iteration(
+        "iteration-1",
+        repository=repository,
+        event_publisher=events,
+        runner=SlowRunner(repository),
+        worker_id="worker-1",
+        lease_seconds=60,
+        heartbeat_seconds=0.01,
+    )
+
+    assert result == {"id": "iteration-1", "status": "passed"}
+    assert repository.heartbeats
 
 
 def test_execute_iteration_stops_before_runner_when_cancel_requested_after_claim():

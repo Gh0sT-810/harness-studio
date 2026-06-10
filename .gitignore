@@ -15,6 +15,12 @@ api/*.test
 # Python
 __pycache__/
 **/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+build/
+**/build/
+*.egg-info/
+**/*.egg-info/
 
 # Runtime data
 data/artifacts/

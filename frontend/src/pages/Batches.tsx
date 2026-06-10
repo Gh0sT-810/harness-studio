@@ -21,9 +21,17 @@ export function Batches() {
   const gymsQuery = useQuery({ queryKey: ['gyms'], queryFn: gymApi.list })
   const tasksQuery = useQuery({ queryKey: ['tasks'], queryFn: taskApi.list })
   const modelsQuery = useQuery({ queryKey: ['models'], queryFn: modelApi.list })
+  const providersQuery = useQuery({ queryKey: ['model-providers'], queryFn: modelApi.listProviders })
   const batchesQuery = useQuery({ queryKey: ['batches'], queryFn: batchApi.list })
   const gymOptions = useMemo(() => (gymsQuery.data ?? []).map((gym) => ({ label: gym.name, value: gym.id })), [gymsQuery.data])
   const tasks = useMemo(() => (tasksQuery.data ?? []).filter((task) => !gymId || task.gymId === gymId), [gymId, tasksQuery.data])
+  const enabledModels = useMemo(() => {
+    const providers = providersQuery.data ?? []
+    const enabledProviderIds = new Set(providers.filter((provider) => provider.enabled).map((provider) => provider.id))
+    return (modelsQuery.data ?? []).filter(
+      (model) => model.enabled !== false && enabledProviderIds.has(model.providerId),
+    )
+  }, [modelsQuery.data, providersQuery.data])
   const filtered = useMemo(
     () =>
       (batchesQuery.data ?? []).filter((batch) => {
@@ -119,10 +127,16 @@ export function Batches() {
               </div>
               <div data-id="batch-model-options" className="grid gap-2">
                 <p className="harness-actions-label">Models</p>
-                {(modelsQuery.data ?? []).map((model) => (
+                {enabledModels.length === 0 ? (
+                  <p data-id="batch-models-empty" className="harness-subtitle">
+                    No enabled models found. Create models under Admin → Model Registry for enabled providers.
+                  </p>
+                ) : null}
+                {enabledModels.map((model) => (
                   <label data-id={`batch-model-option-${model.id}`} className="flex gap-2 text-sm" key={model.id}>
                     <input type="checkbox" checked={modelIds.includes(model.id)} onChange={() => toggle(model.id, modelIds, setModelIds)} />
                     {model.displayName}
+                    {model.isDefault ? <span className="text-[var(--muted)]">(default)</span> : null}
                   </label>
                 ))}
               </div>

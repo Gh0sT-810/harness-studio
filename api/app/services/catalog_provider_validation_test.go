@@ -27,3 +27,22 @@ func TestValidateModelProviderAcceptsMockedConnectivityForConfiguredProvider(t *
 	assert.Equal(t, "ok", result.Status)
 	assert.Contains(t, result.Message, "mock connectivity")
 }
+
+func TestValidateModelCompatibilityRejectsGPT41ForOpenAIComputerPreview(t *testing.T) {
+	result := validateModelCompatibility(
+		models.ModelDefinition{ModelName: "gpt-4.1", Enabled: true},
+		models.ModelProvider{AdapterKey: "openai_responses_computer", Enabled: true, SecretRef: "OPENAI_API_KEY"},
+	)
+
+	assert.Equal(t, "error", result.Status)
+	assert.Contains(t, result.Message, "computer-use-preview")
+}
+
+func TestValidateModelCompatibilityAcceptsOpenAIComputerPreviewModel(t *testing.T) {
+	result := validateModelCompatibility(
+		models.ModelDefinition{ModelName: "computer-use-preview", Enabled: true},
+		models.ModelProvider{AdapterKey: "openai_responses_computer", Enabled: true, SecretRef: "OPENAI_API_KEY"},
+	)
+
+	assert.Equal(t, "ok", result.Status)
+}

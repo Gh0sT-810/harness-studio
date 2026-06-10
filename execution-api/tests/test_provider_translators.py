@@ -63,6 +63,31 @@ class FakeOpenAIClient:
         }
 
 
+class FakeOpenAIScreenshotClient:
+    def __init__(self):
+        self.calls = []
+
+    def create_response(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            return {
+                "id": "response-1",
+                "output": [
+                    {
+                        "type": "computer_call",
+                        "call_id": "call-1",
+                        "action": {"type": "screenshot"},
+                    }
+                ],
+                "usage": {"input_tokens": 5, "output_tokens": 2, "total_tokens": 7},
+            }
+        return {
+            "id": "response-2",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "openai done"}]}],
+            "usage": {"input_tokens": 3, "output_tokens": 4, "total_tokens": 7},
+        }
+
+
 class FakeAnthropicClient:
     def __init__(self):
         self.calls = []
@@ -124,6 +149,22 @@ def test_openai_responses_adapter_executes_computer_calls_and_returns_final_resp
     assert result.timeline[0]["action"] == "click"
     assert computer.calls == [("click", 10, 20, "left"), ("screenshot",)]
     assert client.calls[1]["previous_response_id"] == "response-1"
+    assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
+
+
+def test_openai_responses_adapter_handles_screenshot_action():
+    from app.adapters.cua import OpenAIResponsesComputerAdapter
+
+    computer = FakeComputer()
+    client = FakeOpenAIScreenshotClient()
+    adapter = OpenAIResponsesComputerAdapter(model("openai_responses_computer"), client=client, api_key="test-key")
+
+    result = adapter.generate("Show the screen", context={"computer": computer})
+
+    assert result.content == "openai done"
+    assert result.timeline[0]["provider"] == "openai"
+    assert result.timeline[0]["action"] == "screenshot"
+    assert computer.calls == [("screenshot",)]
     assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
 
 
@@ -226,6 +267,7 @@ def test_live_openai_wrapper_forwards_computer_tool_and_outputs():
     )
 
     assert responses.kwargs["previous_response_id"] == "previous-id"
+    assert responses.kwargs["truncation"] == "auto"
     assert responses.kwargs["tools"][0]["type"] == "computer_use_preview"
     assert responses.kwargs["input"][0]["type"] == "computer_call_output"
     assert responses.kwargs["input"][0]["call_id"] == "call-1"

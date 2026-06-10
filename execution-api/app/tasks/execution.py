@@ -1,3 +1,5 @@
+import threading
+
 from app.celery_app import celery_app
 from app.adapters.registry import AdapterRegistry
 from app.events import RedisEventPublisher
@@ -14,6 +16,7 @@ def execute_iteration(
     runner=None,
     worker_id: str | None = None,
     lease_seconds: int | None = None,
+    heartbeat_seconds: float | None = None,
 ) -> dict[str, str]:
     settings = get_settings()
     repository = repository or PostgresIterationRepository()
@@ -21,6 +24,7 @@ def execute_iteration(
     runner = runner or PlaywrightCaptureRunner()
     worker_id = worker_id or settings.worker_id
     lease_seconds = lease_seconds or settings.lease_seconds
+    heartbeat_seconds = heartbeat_seconds or settings.heartbeat_seconds
 
     iteration = repository.claim_iteration(iteration_id, worker_id, lease_seconds)
     if iteration is None:
@@ -55,9 +59,22 @@ def execute_iteration(
         return completed
 
     event_publisher.publish_iteration_event("iteration.started", iteration, {"status": "executing"})
+    stop_heartbeat = threading.Event()
+
+    def heartbeat_loop() -> None:
+        while not stop_heartbeat.wait(heartbeat_seconds):
+            try:
+                repository.heartbeat(iteration_id, worker_id, lease_seconds)
+            except Exception:
+                pass
+
+    heartbeat_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
     try:
         result = runner.run(iteration)
     except Exception as exc:
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=heartbeat_seconds)
         completed = repository.complete_iteration(
             iteration_id,
             worker_id,
@@ -79,6 +96,9 @@ def execute_iteration(
             {"counts": repository.batch_counts(iteration["batch_id"])},
         )
         return completed
+    finally:
+        stop_heartbeat.set()
+        heartbeat_thread.join(timeout=heartbeat_seconds)
     if result.timeline_artifact_id and hasattr(repository, "set_timeline_artifact"):
         repository.set_timeline_artifact(iteration_id, result.timeline_artifact_id)
     for artifact in result.artifacts:

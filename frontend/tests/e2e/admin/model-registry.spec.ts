@@ -27,7 +27,8 @@ test.describe('Admin Model Registry', () => {
     })
     await page.route('**/api/models', async (route) => {
       if (route.request().method() === 'POST') {
-        models = [{ ...mockModel, id: 'model-2', providerId: 'provider-2', displayName: 'GPT 4.1', modelName: 'gpt-4.1', isDefault: false, enabled: true }]
+        const payload = await route.request().postDataJSON()
+        models = [{ ...mockModel, id: 'model-2', providerId: 'provider-2', displayName: payload.displayName, modelName: payload.modelName, isDefault: false, enabled: true }]
         await route.fulfill({ json: { success: true, message: 'created', statusCode: 201, data: models[0] } })
         return
       }
@@ -42,6 +43,8 @@ test.describe('Admin Model Registry', () => {
     })
 
     await page.goto('/admin?tab=models')
+    await page.locator('[data-id="add-model-registry-button"]').click()
+    await expect(page.locator('[data-id="provider-modal"]')).toBeVisible()
     await page.locator('[data-id="provider-key-input"]').fill('openai')
     await page.locator('[data-id="provider-name-input"]').fill('OpenAI')
     await page.locator('[data-id="provider-adapter-input"]').fill('openai_responses_computer')
@@ -50,9 +53,12 @@ test.describe('Admin Model Registry', () => {
     await page.locator('[data-id="provider-test-provider-2"]').click()
     await expect(page.getByText('provider config valid')).toBeVisible()
 
+    await page.locator('[data-id="create-model-button"]').click()
+    await expect(page.locator('[data-id="model-modal"]')).toBeVisible()
     await page.locator('[data-id="model-provider-input"]').selectOption('provider-2')
-    await page.locator('[data-id="model-name-input"]').fill('gpt-4.1')
-    await page.locator('[data-id="model-display-input"]').fill('GPT 4.1')
+    await expect(page.locator('[data-id="model-compatibility-help"]')).toContainText('computer-use-preview')
+    await expect(page.locator('[data-id="model-name-input"]')).toHaveValue('computer-use-preview')
+    await expect(page.locator('[data-id="model-display-input"]')).toHaveValue('OpenAI Computer Use Preview')
     await page.locator('[data-id="model-submit"]').click()
     await expect(page.locator('[data-id="model-card-model-2"]')).toBeVisible()
     await page.locator('[data-id="model-default-action-model-2"]').click()

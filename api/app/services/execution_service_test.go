@@ -15,6 +15,8 @@ type fakeExecutionStore struct {
 	createReq  models.BatchCreateRequest
 	createdBy  string
 	defaultID  string
+	models     map[string]models.ModelDefinition
+	providers  map[string]models.ModelProvider
 	snapshot   models.BatchSnapshot
 	listResult []models.Batch
 }
@@ -41,6 +43,20 @@ func (f *fakeExecutionStore) DefaultModelID(context.Context) (string, error) {
 	return f.defaultID, nil
 }
 
+func (f *fakeExecutionStore) GetModelDefinition(_ context.Context, id string) (models.ModelDefinition, error) {
+	if f.models == nil {
+		return models.ModelDefinition{ID: id, ProviderID: "provider-1", ModelName: "local-test-model", DisplayName: "Local Test Model", Enabled: true}, nil
+	}
+	return f.models[id], nil
+}
+
+func (f *fakeExecutionStore) GetModelProvider(_ context.Context, id string) (models.ModelProvider, error) {
+	if f.providers == nil {
+		return models.ModelProvider{ID: id, AdapterKey: "local", Enabled: true}, nil
+	}
+	return f.providers[id], nil
+}
+
 type fakeExecutionDispatcher struct {
 	dispatchedBatch string
 	cancelledIDs    []string
@@ -57,7 +73,7 @@ func (f *fakeExecutionDispatcher) CancelIteration(_ context.Context, iterationID
 }
 
 func TestExecutionService_CreateBatchDispatchesCreatedBatch(t *testing.T) {
-	store := &fakeExecutionStore{batch: models.Batch{ID: "batch-1", Status: "pending"}}
+	store := &fakeExecutionStore{batch: models.Batch{ID: "batch-1", Status: "pending"}, defaultID: "model-default"}
 	dispatcher := &fakeExecutionDispatcher{}
 	service := NewExecutionService(store, nil, dispatcher)
 
@@ -76,6 +92,26 @@ func TestExecutionService_CreateBatchUsesDefaultModelWhenModelIDsOmitted(t *test
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"model-default"}, store.createReq.ModelIDs)
+}
+
+func TestExecutionService_CreateBatchRejectsIncompatibleModel(t *testing.T) {
+	store := &fakeExecutionStore{
+		batch: models.Batch{ID: "batch-1", Status: "pending"},
+		models: map[string]models.ModelDefinition{
+			"model-1": {ID: "model-1", ProviderID: "provider-1", ModelName: "gpt-4.1", Enabled: true},
+		},
+		providers: map[string]models.ModelProvider{
+			"provider-1": {ID: "provider-1", AdapterKey: "openai_responses_computer", Enabled: true, SecretRef: "OPENAI_API_KEY"},
+		},
+	}
+	dispatcher := &fakeExecutionDispatcher{}
+	service := NewExecutionService(store, nil, dispatcher)
+
+	_, err := service.CreateBatch(context.Background(), models.BatchCreateRequest{Name: "Batch", TaskIDs: []string{"task-1"}, ModelIDs: []string{"model-1"}, IterationCount: 1}, "user-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "computer-use-preview")
+	assert.Empty(t, dispatcher.dispatchedBatch)
 }
 
 func TestExecutionService_CancelBatchCancelsEachCancelableIteration(t *testing.T) {

@@ -46,6 +46,13 @@ export function BatchSnapshotPage() {
     const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0) + (snapshot.counts.cancelled ?? 0)
     return Math.round((terminal / snapshot.counts.total) * 100)
   }, [snapshot])
+  const failedIterationErrors = useMemo(
+    () =>
+      snapshot?.iterations
+        .filter((iteration) => iteration.status === 'failed' && iteration.resultData?.error)
+        .map((iteration) => ({ id: iteration.id, error: iteration.resultData?.error ?? '' })) ?? [],
+    [snapshot],
+  )
 
   if (!snapshot) {
     return <EmptyState id="snapshot-loading" message="Loading batch snapshot..." />
@@ -86,8 +93,15 @@ export function BatchSnapshotPage() {
               <CardTitle>Failure diagnostics</CardTitle>
               <CardDescription>Phase 3 placeholder fed by snapshot and event counts.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-3">
               <p className="harness-code-inline w-fit">failed={snapshot.counts.failed ?? 0} crashed={snapshot.counts.crashed ?? 0} timeout={snapshot.counts.timeout ?? 0}</p>
+              {failedIterationErrors.length === 0 ? null : (
+                <div data-id="iteration-error-list" className="grid gap-2">
+                  {failedIterationErrors.map((item) => (
+                    <p key={item.id} className="whitespace-pre-wrap text-sm text-[var(--danger)]">{item.error}</p>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

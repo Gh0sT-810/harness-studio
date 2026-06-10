@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
@@ -140,10 +141,26 @@ func (s *CatalogService) TestModelProvider(ctx context.Context, id string) (mode
 }
 
 func (s *CatalogService) CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	provider, err := s.store.GetModelProvider(ctx, req.ProviderID)
+	if err != nil {
+		return models.ModelDefinition{}, err
+	}
+	result := validateModelCompatibility(modelDefinitionFromRequest(req), provider)
+	if result.Status == "error" {
+		return models.ModelDefinition{}, errors.New(result.Message)
+	}
 	return s.store.CreateModelDefinition(ctx, req)
 }
 
 func (s *CatalogService) UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {
+	provider, err := s.store.GetModelProvider(ctx, req.ProviderID)
+	if err != nil {
+		return models.ModelDefinition{}, err
+	}
+	result := validateModelCompatibility(modelDefinitionFromRequest(req), provider)
+	if result.Status == "error" {
+		return models.ModelDefinition{}, errors.New(result.Message)
+	}
 	return s.store.UpdateModelDefinition(ctx, id, req)
 }
 
@@ -159,7 +176,11 @@ func (s *CatalogService) TestModelDefinition(ctx context.Context, id string) (mo
 	if !model.Enabled {
 		return models.ModelTestResult{Status: "warning", Message: "model is disabled"}, nil
 	}
-	return models.ModelTestResult{Status: "ok", Message: "model config valid"}, nil
+	provider, err := s.store.GetModelProvider(ctx, model.ProviderID)
+	if err != nil {
+		return models.ModelTestResult{}, err
+	}
+	return validateModelCompatibility(model, provider), nil
 }
 
 func (s *CatalogService) DeleteModelDefinition(ctx context.Context, id string) error {
@@ -198,4 +219,57 @@ func validateModelProvider(provider models.ModelProvider) models.ModelTestResult
 		return models.ModelTestResult{Status: "error", Message: "secretRef is required for provider-backed adapters"}
 	}
 	return models.ModelTestResult{Status: "ok", Message: "provider config valid; mock connectivity check passed"}
+}
+
+func modelDefinitionFromRequest(req models.ModelDefinitionRequest) models.ModelDefinition {
+	return models.ModelDefinition{
+		ProviderID:      req.ProviderID,
+		ModelName:       req.ModelName,
+		DisplayName:     req.DisplayName,
+		Capabilities:    req.Capabilities,
+		Config:          req.Config,
+		CostConfig:      req.CostConfig,
+		TimeoutSeconds:  req.TimeoutSeconds,
+		MaxOutputTokens: req.MaxOutputTokens,
+		Enabled:         req.Enabled,
+		IsDefault:       req.IsDefault,
+	}
+}
+
+func validateModelCompatibility(model models.ModelDefinition, provider models.ModelProvider) models.ModelTestResult {
+	if !provider.Enabled {
+		return models.ModelTestResult{Status: "error", Message: "provider is disabled"}
+	}
+	providerResult := validateModelProvider(provider)
+	if providerResult.Status == "error" {
+		return providerResult
+	}
+	if provider.AdapterKey == "openai_responses_computer" {
+		toolMode := stringConfig(model.Config, "toolMode")
+		if toolMode == "" {
+			toolMode = "computer_use_preview"
+		}
+		if toolMode != "computer_use_preview" {
+			return models.ModelTestResult{Status: "error", Message: "openai_responses_computer currently supports toolMode computer_use_preview only"}
+		}
+		if model.ModelName != "computer-use-preview" {
+			return models.ModelTestResult{Status: "error", Message: "openai_responses_computer with computer_use_preview requires computer-use-preview, got " + model.ModelName}
+		}
+	}
+	return models.ModelTestResult{Status: "ok", Message: "model config valid"}
+}
+
+func stringConfig(config map[string]any, key string) string {
+	if config == nil {
+		return ""
+	}
+	value, ok := config[key]
+	if !ok || value == nil {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return text
 }

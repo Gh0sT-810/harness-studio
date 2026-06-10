@@ -111,6 +111,7 @@ export type BatchSnapshot = {
     startedAt?: string
     completedAt?: string
     timelineArtifactId?: string
+    resultData?: { error?: string; runner?: string }
     artifacts?: ArtifactSummary[]
   }>
   counts: Record<string, number>
