@@ -13,6 +13,34 @@ function envelope<T>(data: T, message = 'ok') {
   }
 }
 
+// Viewport-exact ("ditto") frame: 1280x800, like the new capture pipeline produces.
+const viewportScreenshot = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#ffffff"/><rect x="0" y="0" width="1280" height="120" fill="#e5e7eb"/><text x="64" y="92" font-family="Arial" font-size="48" fill="#111827">Viewport screenshot fixture</text><circle cx="640" cy="360" r="48" fill="#ef4444"/></svg>',
+)
+
+// Legacy full-page frame recorded before viewport capture existed (regression fixture).
+const tallScreenshot = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="2400" viewBox="0 0 1280 2400"><rect width="1280" height="2400" fill="#ffffff"/><rect x="0" y="0" width="1280" height="120" fill="#e5e7eb"/><text x="64" y="92" font-family="Arial" font-size="48" fill="#111827">Tall browser screenshot fixture</text><circle cx="640" cy="360" r="48" fill="#ef4444"/></svg>',
+)
+
+type CursorFixture = { x: number; y: number } | null
+
+function viewportCapture(cursor: CursorFixture) {
+  return {
+    viewport: { width: 1280, height: 800 },
+    screenshot: { fullPage: false, scrollX: 0, scrollY: 0, deviceScaleFactor: 1 },
+    cursor: cursor
+      ? { coordinateBasis: 'viewport', x: cursor.x, y: cursor.y, visible: true }
+      : { coordinateBasis: 'viewport', visible: false },
+  }
+}
+
+const fullPageCapture = {
+  viewport: { width: 1280, height: 800 },
+  screenshot: { fullPage: true, scrollX: 0, scrollY: 0, deviceScaleFactor: 1 },
+  cursor: { coordinateBasis: 'viewport' },
+}
+
 export async function seedAuthenticatedState(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('auth_token', 'test-token')
@@ -20,7 +48,16 @@ export async function seedAuthenticatedState(page: Page) {
   })
 }
 
-export async function mockPhase2Api(page: Page) {
+export type MockPhase2Options = {
+  /** Artificial latency for screenshot artifact responses (transition tests). */
+  artifactDelayMs?: number
+}
+
+export async function mockPhase2Api(page: Page, options: MockPhase2Options = {}) {
+  const artifactDelayMs = options.artifactDelayMs ?? 0
+  const artifactDelay = () => (artifactDelayMs > 0 ? new Promise((resolve) => setTimeout(resolve, artifactDelayMs)) : Promise.resolve())
+  let batchCancelled = false
+
   await page.route('**/api/me', async (route) => {
     await route.fulfill({ json: envelope(seededAdmin, 'current user') })
   })
@@ -49,35 +86,60 @@ export async function mockPhase2Api(page: Page) {
     await route.fulfill({
       json: envelope(
         {
-          batch: mockBatch,
-          executions: [{ id: 'e1', status: 'pending', snapshotPrompt: mockTask.prompt }],
-          iterations: [{ id: 'i1', executionId: 'e1', status: 'passed', iterationNumber: 1, timelineArtifactId: 'timeline-1' }],
-          counts: { total: 1, pending: 1 },
+          batch: { ...mockBatch, status: batchCancelled ? 'cancelled' : mockBatch.status },
+          executions: [{ id: 'e1', status: batchCancelled ? 'cancelled' : 'pending', taskId: mockTask.id, modelId: mockModel.id, snapshotTaskId: mockTask.taskId, snapshotPrompt: mockTask.prompt }],
+          iterations: [{ id: 'i1', executionId: 'e1', status: batchCancelled ? 'cancelled' : 'executing', iterationNumber: 1, timelineArtifactId: 'timeline-1' }],
+          counts: batchCancelled ? { total: 1, cancelled: 1 } : { total: 1, executing: 1 },
           report: { status: 'not_configured' },
+          catalog: {
+            gyms: { [mockGym.id]: mockGym },
+            tasks: { [mockTask.id]: mockTask },
+            models: { [mockModel.id]: mockModel },
+          },
         },
         'snapshot',
       ),
     })
   })
+  await page.route('**/api/batches/b1/cancel', async (route) => {
+    batchCancelled = true
+    await route.fulfill({ status: 202, json: envelope({ id: mockBatch.id }, 'batch cancellation requested') })
+  })
+  const screenshotArtifact = (id: string, filename: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    scope: 'iterations/i1',
+    artifactType: 'screenshot',
+    objectKey: `iterations/i1/screenshots/${filename}`,
+    sizeBytes: viewportScreenshot.byteLength,
+    contentHash: `hash-${id}`,
+    metadata: { filename, contentType: 'image/png', ...extra },
+    createdAt: '2026-01-01T00:00:01Z',
+  })
   const artifacts = [
+    screenshotArtifact('before-1', 'before.png', { timelineKind: 'before', capture: viewportCapture(null) }),
+    screenshotArtifact('after-1', 'after.png', { timelineKind: 'after', capture: viewportCapture(null) }),
+    screenshotArtifact('before-2', 'step-2-before.png', { timelineKind: 'before', timelineStepIndex: 2, action: 'click', capture: viewportCapture(null) }),
+    screenshotArtifact('after-2', 'step-2-after.png', { timelineKind: 'after', timelineStepIndex: 2, action: 'click', capture: viewportCapture({ x: 640, y: 360 }) }),
+    screenshotArtifact('before-3', 'step-3-before.png', { timelineKind: 'before', timelineStepIndex: 3, action: 'keypress', capture: viewportCapture({ x: 640, y: 360 }) }),
+    screenshotArtifact('after-3', 'step-3-after.png', { timelineKind: 'after', timelineStepIndex: 3, action: 'keypress', capture: viewportCapture({ x: 640, y: 360 }) }),
     {
-      id: 'before-1',
+      id: 'before-4',
       scope: 'iterations/i1',
       artifactType: 'screenshot',
-      objectKey: 'iterations/i1/screenshots/before.png',
-      sizeBytes: 8,
-      contentHash: 'hash-before',
-      metadata: { filename: 'before.png', contentType: 'image/png' },
-      createdAt: '2026-01-01T00:00:00Z',
+      objectKey: 'iterations/i1/screenshots/step-4-before.png',
+      sizeBytes: tallScreenshot.byteLength,
+      contentHash: 'hash-before-4',
+      metadata: { filename: 'step-4-before.png', contentType: 'image/png', timelineKind: 'before', timelineStepIndex: 4, action: 'click', capture: fullPageCapture },
+      createdAt: '2026-01-01T00:00:01Z',
     },
     {
-      id: 'after-1',
+      id: 'after-4',
       scope: 'iterations/i1',
       artifactType: 'screenshot',
-      objectKey: 'iterations/i1/screenshots/after.png',
-      sizeBytes: 8,
-      contentHash: 'hash-after',
-      metadata: { filename: 'after.png', contentType: 'image/png' },
+      objectKey: 'iterations/i1/screenshots/step-4-after.png',
+      sizeBytes: tallScreenshot.byteLength,
+      contentHash: 'hash-after-4',
+      metadata: { filename: 'step-4-after.png', contentType: 'image/png', timelineKind: 'after', timelineStepIndex: 4, action: 'click', capture: fullPageCapture },
       createdAt: '2026-01-01T00:00:01Z',
     },
     {
@@ -100,6 +162,36 @@ export async function mockPhase2Api(page: Page) {
       metadata: { filename: 'execution.log', contentType: 'text/plain' },
       createdAt: '2026-01-01T00:00:03Z',
     },
+    {
+      id: 'conversation-1',
+      scope: 'iterations/i1',
+      artifactType: 'conversation',
+      objectKey: 'iterations/i1/conversation/conversation.json',
+      sizeBytes: 16,
+      contentHash: 'hash-conversation',
+      metadata: { filename: 'conversation.json', contentType: 'application/json' },
+      createdAt: '2026-01-01T00:00:04Z',
+    },
+    {
+      id: 'response-1',
+      scope: 'iterations/i1',
+      artifactType: 'task_response',
+      objectKey: 'iterations/i1/task_response/response.json',
+      sizeBytes: 16,
+      contentHash: 'hash-response',
+      metadata: { filename: 'response.json', contentType: 'application/json' },
+      createdAt: '2026-01-01T00:00:05Z',
+    },
+    {
+      id: 'verification-1',
+      scope: 'iterations/i1',
+      artifactType: 'verification',
+      objectKey: 'iterations/i1/verification/verification.json',
+      sizeBytes: 16,
+      contentHash: 'hash-verification',
+      metadata: { filename: 'verification.json', contentType: 'application/json' },
+      createdAt: '2026-01-01T00:00:06Z',
+    },
   ]
   await page.route('**/api/iterations/i1/files', async (route) => {
     await route.fulfill({ json: artifacts })
@@ -119,17 +211,69 @@ export async function mockPhase2Api(page: Page) {
             title: 'Demo Gym',
             beforeArtifactId: 'before-1',
             afterArtifactId: 'after-1',
+            capture: viewportCapture(null),
+            captureAfter: viewportCapture(null),
+          },
+          {
+            id: 'step-2',
+            index: 2,
+            type: 'model_action',
+            provider: 'openai',
+            action: 'click',
+            args: { x: 640, y: 360 },
+            message: 'openai click',
+            url: 'https://example.com/done',
+            title: 'Demo Gym Done',
+            beforeArtifactId: 'before-2',
+            afterArtifactId: 'after-2',
+            capture: viewportCapture(null),
+            captureAfter: viewportCapture({ x: 640, y: 360 }),
+          },
+          {
+            id: 'step-3',
+            index: 3,
+            type: 'model_action',
+            provider: 'openai',
+            action: 'keypress',
+            args: { keys: ['ctrl', 'a'] },
+            message: 'openai keypress',
+            url: 'https://example.com/done',
+            title: 'Demo Gym Done',
+            beforeArtifactId: 'before-3',
+            afterArtifactId: 'after-3',
+            capture: viewportCapture({ x: 640, y: 360 }),
+            captureAfter: viewportCapture({ x: 640, y: 360 }),
+          },
+          {
+            id: 'step-4',
+            index: 4,
+            type: 'model_action',
+            provider: 'openai',
+            action: 'click',
+            args: { x: 640, y: 360 },
+            message: 'openai click on legacy full-page frame',
+            url: 'https://example.com/legacy',
+            title: 'Legacy Frame',
+            beforeArtifactId: 'before-4',
+            afterArtifactId: 'after-4',
+            capture: fullPageCapture,
           },
         ],
       },
     })
   })
-  await page.route('**/api/artifacts/before-1', async (route) => {
-    await route.fulfill({ body: Buffer.from('before'), contentType: 'image/png' })
-  })
-  await page.route('**/api/artifacts/after-1', async (route) => {
-    await route.fulfill({ body: Buffer.from('after'), contentType: 'image/png' })
-  })
+  for (const id of ['before-1', 'after-1', 'before-2', 'after-2', 'before-3', 'after-3']) {
+    await page.route(`**/api/artifacts/${id}`, async (route) => {
+      await artifactDelay()
+      await route.fulfill({ body: viewportScreenshot, contentType: 'image/svg+xml' })
+    })
+  }
+  for (const id of ['before-4', 'after-4']) {
+    await page.route(`**/api/artifacts/${id}`, async (route) => {
+      await artifactDelay()
+      await route.fulfill({ body: tallScreenshot, contentType: 'image/svg+xml' })
+    })
+  }
   await page.route('**/api/artifacts/log-1', async (route) => {
     await route.fulfill({ body: 'log captured', contentType: 'text/plain' })
   })

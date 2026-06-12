@@ -1,3 +1,4 @@
+import inspect
 import threading
 
 from app.celery_app import celery_app
@@ -7,6 +8,65 @@ from app.models.registry import ModelDefinition
 from app.repositories.iterations import PostgresIterationRepository
 from app.runners.playwright_capture import PlaywrightCaptureRunner
 from app.settings import get_settings
+
+
+class LiveProgressObserver:
+    """Publishes live-monitor events as the runner persists steps/artifacts.
+
+    DB updates happen before events (set_timeline_artifact precedes
+    iteration.step_added) and every published id is recorded so the
+    completion path does not emit duplicates.
+    """
+
+    def __init__(self, repository, event_publisher, iteration, iteration_id: str):
+        self.repository = repository
+        self.event_publisher = event_publisher
+        self.iteration = iteration
+        self.iteration_id = iteration_id
+        self.published_artifact_ids: set[str] = set()
+        self.published_step_ids: set[str] = set()
+        self.timeline_artifact_id = ""
+
+    def on_artifact(self, artifact: dict) -> None:
+        payload = {
+            "artifactId": artifact["id"],
+            "artifactType": artifact["artifactType"],
+            "scope": artifact["scope"],
+            "filename": artifact.get("metadata", {}).get("filename", ""),
+            "iterationId": self.iteration_id,
+            "executionId": self.iteration.get("execution_id", ""),
+        }
+        step_index = artifact.get("metadata", {}).get("timelineStepIndex")
+        if step_index is not None:
+            payload["timelineStepIndex"] = step_index
+        self.event_publisher.publish_iteration_event("artifact.created", self.iteration, payload)
+        self.published_artifact_ids.add(artifact["id"])
+
+    def on_step(self, step: dict, timeline_artifact: dict | None) -> None:
+        if (
+            timeline_artifact
+            and timeline_artifact["id"] != self.timeline_artifact_id
+            and hasattr(self.repository, "set_timeline_artifact")
+        ):
+            self.repository.set_timeline_artifact(self.iteration_id, timeline_artifact["id"])
+            self.timeline_artifact_id = timeline_artifact["id"]
+        self.event_publisher.publish_iteration_event(
+            "iteration.step_added",
+            self.iteration,
+            {"message": step.get("message", ""), **step},
+        )
+        self.published_step_ids.add(str(step.get("id", "")))
+
+
+def _run_with_observer(runner, iteration: dict, observer):
+    run = runner.run
+    try:
+        accepts_observer = "observer" in inspect.signature(run).parameters
+    except (TypeError, ValueError):
+        accepts_observer = False
+    if accepts_observer:
+        return run(iteration, observer=observer)
+    return run(iteration)
 
 
 def execute_iteration(
@@ -70,8 +130,9 @@ def execute_iteration(
 
     heartbeat_thread = threading.Thread(target=heartbeat_loop, daemon=True)
     heartbeat_thread.start()
+    observer = LiveProgressObserver(repository, event_publisher, iteration, iteration_id)
     try:
-        result = runner.run(iteration)
+        result = _run_with_observer(runner, iteration, observer)
     except Exception as exc:
         stop_heartbeat.set()
         heartbeat_thread.join(timeout=heartbeat_seconds)
@@ -99,9 +160,15 @@ def execute_iteration(
     finally:
         stop_heartbeat.set()
         heartbeat_thread.join(timeout=heartbeat_seconds)
-    if result.timeline_artifact_id and hasattr(repository, "set_timeline_artifact"):
+    if (
+        result.timeline_artifact_id
+        and result.timeline_artifact_id != observer.timeline_artifact_id
+        and hasattr(repository, "set_timeline_artifact")
+    ):
         repository.set_timeline_artifact(iteration_id, result.timeline_artifact_id)
     for artifact in result.artifacts:
+        if artifact["id"] in observer.published_artifact_ids:
+            continue
         event_publisher.publish_iteration_event(
             "artifact.created",
             iteration,
@@ -116,6 +183,8 @@ def execute_iteration(
         )
 
     for step in result.steps:
+        if str(step.payload.get("id", "")) in observer.published_step_ids:
+            continue
         repository.heartbeat(iteration_id, worker_id, lease_seconds)
         event_publisher.publish_iteration_event(
             "iteration.step_added",

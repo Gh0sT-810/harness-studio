@@ -1,9 +1,15 @@
 # Third-party dependencies
 frontend/node_modules/
+execution-api/.venv/
+artifact-service/.venv/
+report-service/.venv/
 
 # Build artifacts
 frontend/dist/
+frontend/test-results/
 api/tmp/
+execution-api/build/
+execution-api/harness_execution_api.egg-info/
 
 # Tool output
 graphify-out/

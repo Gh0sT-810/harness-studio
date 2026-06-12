@@ -62,6 +62,52 @@ def test_repository_creates_artifact_metadata(monkeypatch):
     assert item["metadata"] == {"filename": "before.png"}
 
 
+def test_repository_upsert_updates_existing_row_in_place(monkeypatch):
+    cursor = FakeCursor([
+        ("artifact-1", "iterations/i1", "timeline", "iterations/i1/timeline/action_timeline.json", 9, "hash-2", b'{"stepCount":2}', "2026-01-01T00:00:00Z")
+    ])
+    monkeypatch.setattr(repository, "connect", lambda: fake_connect(cursor))
+
+    item = ArtifactMetadataRepository().upsert(
+        scope="iterations/i1",
+        artifact_type="timeline",
+        object_key="iterations/i1/timeline/action_timeline.json",
+        size_bytes=9,
+        content_hash="hash-2",
+        metadata={"stepCount": 2},
+    )
+
+    sql, params = cursor.executed[0]
+    assert "UPDATE artifacts.artifacts" in sql
+    assert "WHERE scope = %s AND artifact_type = %s AND object_key = %s" in sql
+    assert params[3:] == ("iterations/i1", "timeline", "iterations/i1/timeline/action_timeline.json")
+    # Id is stable: the existing row is updated, not replaced.
+    assert item["id"] == "artifact-1"
+    assert item["metadata"] == {"stepCount": 2}
+
+
+def test_repository_upsert_falls_back_to_insert_when_no_row_exists(monkeypatch):
+    update_cursor = FakeCursor([])
+    insert_cursor = FakeCursor([
+        ("artifact-9", "iterations/i1", "timeline", "iterations/i1/timeline/action_timeline.json", 2, "hash", b'{}', "2026-01-01T00:00:00Z")
+    ])
+    cursors = [update_cursor, insert_cursor]
+    monkeypatch.setattr(repository, "connect", lambda: fake_connect(cursors.pop(0)))
+
+    item = ArtifactMetadataRepository().upsert(
+        scope="iterations/i1",
+        artifact_type="timeline",
+        object_key="iterations/i1/timeline/action_timeline.json",
+        size_bytes=2,
+        content_hash="hash",
+        metadata={},
+    )
+
+    assert "UPDATE artifacts.artifacts" in update_cursor.executed[0][0]
+    assert "INSERT INTO artifacts.artifacts" in insert_cursor.executed[0][0]
+    assert item["id"] == "artifact-9"
+
+
 def test_repository_lists_scope(monkeypatch):
     cursor = FakeCursor([
         ("artifact-1", "iterations/i1", "timeline", "iterations/i1/timeline/action_timeline.json", 2, "hash", b'{}', "2026-01-01T00:00:00Z")

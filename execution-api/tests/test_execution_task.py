@@ -99,6 +99,44 @@ class FakeArtifactRunner:
         )
 
 
+class StreamingRunner:
+    """Streams one artifact + two steps through the observer, then returns the same data."""
+
+    timeline_artifact = {
+        "id": "timeline-1",
+        "scope": "iterations/iteration-1",
+        "artifactType": "timeline",
+        "metadata": {"filename": "action_timeline.json"},
+    }
+    screenshot_artifact = {
+        "id": "screenshot-1",
+        "scope": "iterations/iteration-1",
+        "artifactType": "screenshot",
+        "metadata": {"filename": "step-2-before.png", "timelineStepIndex": 2},
+    }
+    step_one = {"id": "step-1", "index": 1, "type": "navigate", "message": "Captured browser state"}
+    step_two = {"id": "step-2", "index": 2, "type": "model_action", "action": "click", "message": "openai click"}
+
+    def run(self, iteration, observer=None):
+        if observer is not None:
+            observer.on_artifact(self.timeline_artifact)
+            observer.on_step(self.step_one, self.timeline_artifact)
+            observer.on_artifact(self.screenshot_artifact)
+            observer.on_step(self.step_two, self.timeline_artifact)
+        return RunnerResult(
+            status="passed",
+            result_data={"runner": "streaming"},
+            verification_details={"strategy": "playwright_capture"},
+            verification_comments="captured",
+            steps=[
+                RunnerStep(message=self.step_one["message"], payload=self.step_one),
+                RunnerStep(message=self.step_two["message"], payload=self.step_two),
+            ],
+            artifacts=[self.timeline_artifact, self.screenshot_artifact],
+            timeline_artifact_id="timeline-1",
+        )
+
+
 class FailingRunner:
     def run(self, iteration):
         raise RuntimeError("artifact upload failed")
@@ -193,6 +231,34 @@ def test_execute_iteration_persists_timeline_and_publishes_artifact_events():
     assert repository.timeline_artifacts == [("iteration-1", "timeline-1")]
     assert ("artifact.created", "iteration-1", {"artifactId": "timeline-1", "artifactType": "timeline", "scope": "iterations/iteration-1", "filename": "action_timeline.json", "iterationId": "iteration-1", "executionId": "execution-1"}) in events.iteration_events
     assert ("artifact.created", "iteration-1", {"artifactId": "screenshot-1", "artifactType": "screenshot", "scope": "iterations/iteration-1", "filename": "after.png", "iterationId": "iteration-1", "executionId": "execution-1"}) in events.iteration_events
+
+
+def test_execute_iteration_streams_live_events_once_per_step_and_artifact():
+    repository = FakeRepository()
+    events = FakeEvents()
+
+    result = execute_iteration(
+        "iteration-1",
+        repository=repository,
+        event_publisher=events,
+        runner=StreamingRunner(),
+        worker_id="worker-1",
+        lease_seconds=60,
+    )
+
+    assert result == {"id": "iteration-1", "status": "passed"}
+    step_events = [event for event in events.iteration_events if event[0] == "iteration.step_added"]
+    artifact_events = [event for event in events.iteration_events if event[0] == "artifact.created"]
+    # Live events were published exactly once: no completion-time duplicates.
+    assert [event[2]["id"] for event in step_events] == ["step-1", "step-2"]
+    assert [event[2]["artifactId"] for event in artifact_events] == ["timeline-1", "screenshot-1"]
+    # Step screenshots include the timeline step index for snapshot patching.
+    assert artifact_events[1][2]["timelineStepIndex"] == 2
+    # DB pointer was set during the run (via observer), exactly once.
+    assert repository.timeline_artifacts == [("iteration-1", "timeline-1")]
+    # Live events arrive between started and completed.
+    types = [event[0] for event in events.iteration_events]
+    assert types.index("iteration.started") < types.index("iteration.step_added") < types.index("iteration.completed")
 
 
 def test_execute_iteration_records_failed_runner_as_failed_iteration():

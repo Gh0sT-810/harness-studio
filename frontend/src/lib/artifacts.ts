@@ -11,6 +11,25 @@ export type ArtifactMetadata = {
   createdAt: string
 }
 
+export type CaptureMetadata = {
+  viewport?: {
+    width?: number
+    height?: number
+  }
+  screenshot?: {
+    fullPage?: boolean
+    scrollX?: number
+    scrollY?: number
+    deviceScaleFactor?: number
+  }
+  cursor?: {
+    coordinateBasis?: 'viewport' | 'screenshot' | string
+    x?: number
+    y?: number
+    visible?: boolean
+  }
+}
+
 export type TimelineStep = {
   id: string
   index: number
@@ -18,8 +37,15 @@ export type TimelineStep = {
   message: string
   url?: string
   title?: string
+  provider?: string
+  action?: string
+  args?: Record<string, unknown>
+  status?: string
+  occurredAt?: string
   beforeArtifactId?: string
   afterArtifactId?: string
+  capture?: CaptureMetadata
+  captureAfter?: CaptureMetadata
 }
 
 export type TimelineDocument = {
@@ -28,7 +54,7 @@ export type TimelineDocument = {
   steps: TimelineStep[]
 }
 
-async function authedFetch(path: string) {
+export async function authedFetch(path: string) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: { Authorization: `Bearer ${tokenStore.getAccessToken()}` },
   })

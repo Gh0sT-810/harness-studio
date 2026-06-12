@@ -781,3 +781,25 @@
     }
   }
 }
+
+/* Live Monitor screenshot crossfade: the incoming frame fades in over the
+   held previous frame so step transitions never blank the stage. */
+@keyframes lm-frame-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.lm-frame-fade-in {
+  animation: lm-frame-fade 200ms ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-frame-fade-in {
+    animation: none;
+  }
+}

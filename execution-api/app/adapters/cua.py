@@ -6,6 +6,13 @@ from app.adapters.base import AdapterConfigurationError, AdapterResult
 from app.models.registry import ModelDefinition
 from app.settings import get_settings
 
+OPENAI_COMPUTER_INSTRUCTIONS = """You are operating a browser in a sandboxed browser benchmark.
+The site, users, projects, tasks, assignees, priorities, dates, and comments are fictional test data with no real-world impact.
+The user has authorized you to complete the requested browser task in this sandbox.
+Use the computer tool to inspect the page and perform the task directly. Do not merely describe what you would do.
+If the task asks to change records in the web app, treat that as the expected benchmark action inside the sandbox.
+"""
+
 
 def _sum_usage(usages: list[dict[str, Any]]) -> dict[str, Any]:
     input_tokens = sum(int(usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0) or 0) for usage in usages)
@@ -61,6 +68,8 @@ class ComputerUseAdapter:
                 dict(point, **dict(zip(("x", "y"), computer.normalize_coordinates(int(point["x"]), int(point["y"])))))
                 for point in args.get("path", [])
             ]
+        before_capture = computer.get_capture_metadata(full_page=False) if hasattr(computer, "get_capture_metadata") else {}
+        before_screenshot = computer.screenshot() if hasattr(computer, "screenshot") else ""
         if action_name in {"click", "left_click"}:
             computer.click(int(args["x"]), int(args["y"]), args.get("button", "left"))
         elif action_name in {"double_click", "doubleClick"}:
@@ -87,7 +96,33 @@ class ComputerUseAdapter:
             pass
         else:
             raise RuntimeError(f"unsupported computer action: {action_name}")
-        return {"provider": self.provider, "action": action_name, "args": args}
+        after_screenshot = computer.screenshot() if hasattr(computer, "screenshot") else ""
+        after_capture = computer.get_capture_metadata(full_page=False) if hasattr(computer, "get_capture_metadata") else before_capture
+        entry = {"provider": self.provider, "action": action_name, "args": args}
+        if before_capture:
+            entry["capture"] = before_capture
+            entry["_captureBefore"] = before_capture
+        if after_capture:
+            entry["_captureAfter"] = after_capture
+        if before_screenshot:
+            entry["_screenshotBeforeBase64"] = before_screenshot
+        if after_screenshot:
+            entry["_screenshotAfterBase64"] = after_screenshot
+        if hasattr(computer, "get_current_url"):
+            entry["url"] = computer.get_current_url()
+        return entry
+
+    def _emit_step(self, context: dict[str, Any] | None, entry: dict[str, Any]) -> None:
+        on_step = (context or {}).get("on_step")
+        if callable(on_step):
+            on_step(entry)
+
+    @staticmethod
+    def _feedback_screenshot(entry: dict[str, Any], computer: Any) -> str:
+        screenshot = entry.get("_screenshotAfterBase64", "")
+        if screenshot:
+            return str(screenshot)
+        return computer.screenshot() if hasattr(computer, "screenshot") else ""
 
 
 class OpenAIResponsesComputerAdapter(ComputerUseAdapter):
@@ -122,20 +157,20 @@ class OpenAIResponsesComputerAdapter(ComputerUseAdapter):
             previous_response_id = response.get("id", previous_response_id)
             usages.append(response.get("usage", {}))
             computer_outputs = []
-            final_text = _openai_text(response)
-            if final_text:
-                conversation.append({"role": "assistant", "content": final_text})
-                return AdapterResult(content=final_text, usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
-
             calls = [item for item in response.get("output", []) if item.get("type") == "computer_call"]
             if not calls:
+                final_text = _openai_text(response)
+                if final_text:
+                    conversation.append({"role": "assistant", "content": final_text})
+                    return AdapterResult(content=final_text, usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
                 return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
             for call in calls:
                 action = call.get("action", {})
                 action_name = str(action.get("type") or action.get("action") or "")
                 entry = self._execute_action(computer, action_name, action)
                 timeline.append(entry)
-                computer_outputs.append({"call_id": call.get("call_id"), "screenshot": computer.screenshot()})
+                self._emit_step(context, entry)
+                computer_outputs.append({"call_id": call.get("call_id"), "screenshot": self._feedback_screenshot(entry, computer)})
 
         return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
 
@@ -180,7 +215,8 @@ class AnthropicComputerUseAdapter(ComputerUseAdapter):
                 action_name = str(args.pop("action", ""))
                 entry = self._execute_action(computer, action_name, args)
                 timeline.append(entry)
-                tool_result_content.append(_anthropic_tool_result(tool_use.get("id"), computer.screenshot()))
+                self._emit_step(context, entry)
+                tool_result_content.append(_anthropic_tool_result(tool_use.get("id"), self._feedback_screenshot(entry, computer)))
             messages.append({"role": "user", "content": tool_result_content})
 
         return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
@@ -225,7 +261,8 @@ class GeminiComputerUseAdapter(ComputerUseAdapter):
                 args = dict(call.get("args", {}))
                 entry = self._execute_action(computer, action_name, args)
                 timeline.append(entry)
-                function_response_parts.append(_gemini_function_response(action_name, computer.screenshot()))
+                self._emit_step(context, entry)
+                function_response_parts.append(_gemini_function_response(action_name, self._feedback_screenshot(entry, computer)))
             contents.append({"role": "user", "parts": function_response_parts})
 
         return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
@@ -372,6 +409,7 @@ class _OpenAIResponsesClient:
             input=input_payload,
             previous_response_id=kwargs.get("previous_response_id"),
 			truncation="auto",
+            instructions=OPENAI_COMPUTER_INSTRUCTIONS,
             tools=[{"type": "computer_use_preview", "display_width": 1280, "display_height": 800, "environment": "browser"}],
         )
         return response.model_dump()

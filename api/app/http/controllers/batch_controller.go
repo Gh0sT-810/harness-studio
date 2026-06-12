@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Gh0sT-810/harness-studio/api/app/events"
 	"github.com/Gh0sT-810/harness-studio/api/app/http/middleware"
 	"github.com/Gh0sT-810/harness-studio/api/app/models"
 	"github.com/Gh0sT-810/harness-studio/api/app/services"
@@ -103,13 +104,18 @@ func (bc *BatchController) StreamBatchEvents(c *gin.Context) {
 		default:
 		}
 
-		events, err := bc.eventService.ReadBatchEvents(c.Request.Context(), batchID, lastID, 10*time.Second)
+		streamEvents, err := bc.eventService.ReadBatchEvents(c.Request.Context(), batchID, lastID, 10*time.Second)
 		if err != nil {
-			_, _ = fmt.Fprintf(c.Writer, "event: snapshot.required\ndata: {\"reason\":\"stream_error\"}\n\n")
+			envelope := events.NewEnvelope(events.TypeSnapshotRequired, batchID, map[string]any{"reason": "stream_error"})
+			payload, marshalErr := json.Marshal(envelope)
+			if marshalErr != nil {
+				return
+			}
+			_, _ = fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", envelope.Type, payload)
 			flusher.Flush()
 			return
 		}
-		for _, event := range events {
+		for _, event := range streamEvents {
 			lastID = event.StreamID
 			payload, err := json.Marshal(event.Envelope)
 			if err != nil {

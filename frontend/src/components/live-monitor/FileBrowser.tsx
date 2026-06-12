@@ -13,7 +13,7 @@ export function FileBrowser({ files }: { files: ArtifactMetadata[] }) {
   }
 
   return (
-    <section data-id="live-monitor-files" className="grid gap-3">
+    <section data-id="live-monitor-files" className="grid min-h-0 content-start gap-3 overflow-auto">
       {Object.keys(grouped).length === 0 ? <p className="harness-subtitle">No files captured yet.</p> : null}
       {Object.entries(grouped).map(([type, items]) => (
         <div className="harness-card-base p-3" key={type}>

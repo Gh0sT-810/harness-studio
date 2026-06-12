@@ -25,6 +25,7 @@ async def save_artifact(
     scope: str = Form(...),
     artifactType: str = Form(...),
     metadata: str = Form("{}"),
+    upsert: bool = Form(False),
     file: UploadFile = File(...),
     store: LocalArtifactStore = Depends(get_store),
     repository: ArtifactMetadataRepository = Depends(get_repository),
@@ -42,7 +43,8 @@ async def save_artifact(
         stored = store.save(scope, artifactType, file.filename or "artifact.bin", content)
     except UnsafeArtifactPath as exc:
         raise HTTPException(status_code=400, detail="unsafe artifact path") from exc
-    return repository.create(
+    writer = repository.upsert if upsert else repository.create
+    return writer(
         scope=scope,
         artifact_type=artifactType,
         object_key=stored.object_key,

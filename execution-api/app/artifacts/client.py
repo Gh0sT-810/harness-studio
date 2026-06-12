@@ -20,9 +20,10 @@ class ArtifactClient:
         content: bytes,
         metadata: dict,
         content_type: str,
+        upsert: bool = False,
     ) -> dict:
         boundary = "----harness-artifact-boundary"
-        body = self._multipart_body(boundary, scope, artifact_type, filename, content, metadata, content_type)
+        body = self._multipart_body(boundary, scope, artifact_type, filename, content, metadata, content_type, upsert)
         req = request.Request(f"{self.base_url}/internal/artifacts", data=body, method="POST")
         req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
         req.add_header("Content-Length", str(len(body)))
@@ -34,13 +35,15 @@ class ArtifactClient:
         except (HTTPError, URLError) as exc:
             raise ArtifactClientError(str(exc)) from exc
 
-    def _multipart_body(self, boundary: str, scope: str, artifact_type: str, filename: str, content: bytes, metadata: dict, content_type: str) -> bytes:
+    def _multipart_body(self, boundary: str, scope: str, artifact_type: str, filename: str, content: bytes, metadata: dict, content_type: str, upsert: bool = False) -> bytes:
         parts: list[bytes] = []
         fields = {
             "scope": scope,
             "artifactType": artifact_type,
             "metadata": json.dumps(metadata),
         }
+        if upsert:
+            fields["upsert"] = "true"
         for name, value in fields.items():
             parts.append(f"--{boundary}\r\n".encode())
             parts.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())

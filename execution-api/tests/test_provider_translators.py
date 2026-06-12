@@ -88,6 +88,32 @@ class FakeOpenAIScreenshotClient:
         }
 
 
+class FakeOpenAIMixedOutputClient:
+    def __init__(self):
+        self.calls = []
+
+    def create_response(self, **kwargs):
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            return {
+                "id": "response-1",
+                "output": [
+                    {"type": "message", "content": [{"type": "output_text", "text": "I will click the target."}]},
+                    {
+                        "type": "computer_call",
+                        "call_id": "call-1",
+                        "action": {"type": "click", "x": 10, "y": 20, "button": "left"},
+                    },
+                ],
+                "usage": {"input_tokens": 5, "output_tokens": 2, "total_tokens": 7},
+            }
+        return {
+            "id": "response-2",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "openai done"}]}],
+            "usage": {"input_tokens": 3, "output_tokens": 4, "total_tokens": 7},
+        }
+
+
 class FakeAnthropicClient:
     def __init__(self):
         self.calls = []
@@ -147,7 +173,7 @@ def test_openai_responses_adapter_executes_computer_calls_and_returns_final_resp
     assert result.usage == {"input_tokens": 8, "output_tokens": 6, "total_tokens": 14, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "openai"
     assert result.timeline[0]["action"] == "click"
-    assert computer.calls == [("click", 10, 20, "left"), ("screenshot",)]
+    assert computer.calls == [("screenshot",), ("click", 10, 20, "left"), ("screenshot",)]
     assert client.calls[1]["previous_response_id"] == "response-1"
     assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
 
@@ -164,7 +190,22 @@ def test_openai_responses_adapter_handles_screenshot_action():
     assert result.content == "openai done"
     assert result.timeline[0]["provider"] == "openai"
     assert result.timeline[0]["action"] == "screenshot"
-    assert computer.calls == [("screenshot",)]
+    assert computer.calls == [("screenshot",), ("screenshot",)]
+    assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
+
+
+def test_openai_responses_adapter_executes_calls_before_treating_text_as_final():
+    from app.adapters.cua import OpenAIResponsesComputerAdapter
+
+    computer = FakeComputer()
+    client = FakeOpenAIMixedOutputClient()
+    adapter = OpenAIResponsesComputerAdapter(model("openai_responses_computer"), client=client, api_key="test-key")
+
+    result = adapter.generate("Do it", context={"computer": computer})
+
+    assert result.content == "openai done"
+    assert result.timeline[0]["action"] == "click"
+    assert computer.calls == [("screenshot",), ("click", 10, 20, "left"), ("screenshot",)]
     assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
 
 
@@ -181,7 +222,7 @@ def test_anthropic_adapter_executes_tool_use_and_returns_final_response():
     assert result.usage == {"input_tokens": 7, "output_tokens": 7, "total_tokens": 14, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "anthropic"
     assert result.timeline[0]["action"] == "type"
-    assert computer.calls == [("type", "hello"), ("screenshot",)]
+    assert computer.calls == [("screenshot",), ("type", "hello"), ("screenshot",)]
     assert client.calls[1]["messages"][1]["role"] == "assistant"
     assert client.calls[1]["messages"][2]["content"][0]["tool_use_id"] == "tool-1"
 
@@ -199,7 +240,7 @@ def test_gemini_adapter_executes_function_calls_and_returns_final_response():
     assert result.usage == {"input_tokens": 8, "output_tokens": 7, "total_tokens": 15, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "gemini"
     assert result.timeline[0]["action"] == "scroll"
-    assert computer.calls == [("scroll", 14, 18, 0, 300), ("screenshot",)]
+    assert computer.calls == [("screenshot",), ("scroll", 14, 18, 0, 300), ("screenshot",)]
     assert client.calls[1]["contents"][1]["role"] == "model"
     assert client.calls[1]["contents"][2]["parts"][0]["function_response"]["name"] == "scroll"
 
@@ -269,6 +310,8 @@ def test_live_openai_wrapper_forwards_computer_tool_and_outputs():
     assert responses.kwargs["previous_response_id"] == "previous-id"
     assert responses.kwargs["truncation"] == "auto"
     assert responses.kwargs["tools"][0]["type"] == "computer_use_preview"
+    assert "sandboxed browser benchmark" in responses.kwargs["instructions"]
+    assert "Do not merely describe" in responses.kwargs["instructions"]
     assert responses.kwargs["input"][0]["type"] == "computer_call_output"
     assert responses.kwargs["input"][0]["call_id"] == "call-1"
 

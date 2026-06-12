@@ -96,9 +96,17 @@ export type Domain = {
 
 export type BatchSnapshot = {
   batch: Batch
-  executions: Array<{ id: string; status: string; snapshotPrompt: string }>
+  executions: Array<{
+    id: string
+    status: string
+    taskId?: string
+    modelId?: string
+    snapshotTaskId?: string
+    snapshotPrompt: string
+  }>
   iterations: Array<{
     id: string
+    executionId: string
     status: string
     iterationNumber: number
     subStatus?: string
@@ -116,6 +124,11 @@ export type BatchSnapshot = {
   }>
   counts: Record<string, number>
   report?: ReportReadiness
+  catalog?: {
+    gyms?: Record<string, Gym>
+    tasks?: Record<string, Task>
+    models?: Record<string, ModelDefinition>
+  }
 }
 
 export type ReportReadiness = {

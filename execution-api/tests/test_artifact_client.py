@@ -21,13 +21,13 @@ class UploadHandler(BaseHTTPRequestHandler):
     }
     last_path = ""
     last_content_type = ""
+    last_body = b""
 
     def do_POST(self):
         UploadHandler.last_path = self.path
         UploadHandler.last_content_type = self.headers["Content-Type"]
         content_length = int(self.headers.get("Content-Length", "0"))
-        if content_length:
-            self.rfile.read(content_length)
+        UploadHandler.last_body = self.rfile.read(content_length) if content_length else b""
         self.send_response(self.status_code)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -65,6 +65,25 @@ def test_artifact_client_saves_bytes(upload_server):
     assert "multipart/form-data" in UploadHandler.last_content_type
     assert artifact["id"] == "artifact-1"
     assert artifact["artifactType"] == "timeline"
+    assert b'name="upsert"' not in UploadHandler.last_body
+
+
+def test_artifact_client_sends_upsert_field_when_requested(upload_server):
+    UploadHandler.status_code = 201
+    client = ArtifactClient(upload_server)
+
+    client.save_bytes(
+        scope="iterations/i1",
+        artifact_type="timeline",
+        filename="action_timeline.json",
+        content=b"{}",
+        metadata={"filename": "action_timeline.json"},
+        content_type="application/json",
+        upsert=True,
+    )
+
+    assert b'name="upsert"' in UploadHandler.last_body
+    assert b"true" in UploadHandler.last_body
 
 
 def test_artifact_client_raises_for_failed_upload(upload_server):

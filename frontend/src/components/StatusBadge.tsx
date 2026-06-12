@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 export function StatusBadge({ status, id }: { status: string; id: string }) {
   const normalized = status.toLowerCase()
   const variant =
-    normalized === 'passed' || normalized === 'completed' || normalized === 'ok' || normalized === 'live'
+    normalized === 'passed' || normalized === 'completed' || normalized === 'ok' || normalized === 'live' || normalized === 'connected'
       ? 'success'
       : normalized === 'failed' || normalized === 'crashed' || normalized === 'timeout'
         ? 'destructive'

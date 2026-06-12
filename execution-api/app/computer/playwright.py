@@ -26,6 +26,7 @@ KEY_MAP = {
 class PlaywrightComputer:
     def __init__(self, page: Any):
         self.page = page
+        self._cursor: tuple[int, int] | None = None
 
     def get_environment(self) -> str:
         return "browser"
@@ -34,8 +35,30 @@ class PlaywrightComputer:
         viewport = getattr(self.page, "viewport_size", None) or {}
         return int(viewport.get("width", 1280)), int(viewport.get("height", 800))
 
+    def get_cursor_position(self) -> tuple[int, int] | None:
+        return self._cursor
+
+    def get_capture_metadata(self, *, full_page: bool = False) -> dict[str, Any]:
+        width, height = self.get_dimensions()
+        cursor: dict[str, Any] = {"coordinateBasis": "viewport", "visible": False}
+        if self._cursor is not None:
+            cursor.update({"x": self._cursor[0], "y": self._cursor[1], "visible": True})
+        return {
+            "viewport": {"width": width, "height": height},
+            "screenshot": {
+                "fullPage": full_page,
+                "scrollX": self._evaluate_number("() => window.scrollX", 0),
+                "scrollY": self._evaluate_number("() => window.scrollY", 0),
+                "deviceScaleFactor": self._evaluate_number("() => window.devicePixelRatio", 1),
+            },
+            "cursor": cursor,
+        }
+
     def screenshot(self) -> str:
-        data = self.page.screenshot(full_page=True)
+        # Viewport-only capture: the stored frame must be exactly what the
+        # screen showed ("ditto"), and it is also what provider computer-use
+        # tools expect for their configured display size.
+        data = self.page.screenshot(full_page=False)
         if isinstance(data, str):
             return data.split(",", 1)[1] if data.startswith("data:image/") else data
         return base64.b64encode(data).decode("ascii")
@@ -46,9 +69,11 @@ class PlaywrightComputer:
 
     def click(self, x: int, y: int, button: str = "left") -> None:
         self.page.mouse.click(x, y, button=button, click_count=1)
+        self._cursor = (int(x), int(y))
 
     def double_click(self, x: int, y: int) -> None:
         self.page.mouse.click(x, y, button="left", click_count=2)
+        self._cursor = (int(x), int(y))
 
     def type(self, text: str) -> None:
         self.page.keyboard.type(text)
@@ -60,9 +85,11 @@ class PlaywrightComputer:
     def scroll(self, x: int, y: int, scroll_x: int, scroll_y: int) -> None:
         self.page.mouse.move(x, y)
         self.page.mouse.wheel(scroll_x, scroll_y)
+        self._cursor = (int(x), int(y))
 
     def move(self, x: int, y: int) -> None:
         self.page.mouse.move(x, y)
+        self._cursor = (int(x), int(y))
 
     def drag(self, path: list[dict[str, int]]) -> None:
         if not path:
@@ -73,9 +100,21 @@ class PlaywrightComputer:
         for point in rest:
             self.page.mouse.move(point["x"], point["y"])
         self.page.mouse.up(button="left")
+        last = path[-1]
+        self._cursor = (int(last["x"]), int(last["y"]))
 
     def wait(self, ms: int = 1000) -> None:
         self.page.wait_for_timeout(ms)
 
     def get_current_url(self) -> str:
         return str(getattr(self.page, "url", ""))
+
+    def _evaluate_number(self, script: str, default: int | float) -> int | float:
+        evaluate = getattr(self.page, "evaluate", None)
+        if not callable(evaluate):
+            return default
+        try:
+            value = evaluate(script)
+        except Exception:
+            return default
+        return value if isinstance(value, int | float) else default

@@ -23,12 +23,17 @@ export function applyBatchEvent(state: LiveBatchState, event: BatchEventEnvelope
     }
   }
 
-  if (event.type === 'execution.updated' && event.execution_id) {
+  if (event.type === 'execution.updated') {
+    const executionId =
+      event.execution_id ?? (typeof event.payload.execution_id === 'string' ? event.payload.execution_id : undefined)
     const status = typeof event.payload.status === 'string' ? event.payload.status : undefined
+    if (!executionId) {
+      return { ...state, recentEvents }
+    }
     return {
       ...state,
       executions: state.executions.map((execution) =>
-        execution.id === event.execution_id && status ? { ...execution, status } : execution,
+        execution.id === executionId && status ? { ...execution, status } : execution,
       ),
       recentEvents,
     }

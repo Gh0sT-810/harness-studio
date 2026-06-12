@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -12,8 +12,11 @@ import { batchApi } from '@/lib/api'
 import { BatchEventEnvelope, useBatchEvents } from '@/lib/batch-events'
 import { applyBatchEvent, createLiveBatchState, LiveBatchState } from '@/lib/live-batch-store'
 
+const CANCELABLE_ITERATION_STATUSES = new Set(['pending', 'retrying', 'executing'])
+
 export function BatchSnapshotPage() {
   const { id } = useParams()
+  const queryClient = useQueryClient()
   const [liveState, setLiveState] = useState<LiveBatchState | null>(null)
   const [monitorIterationId, setMonitorIterationId] = useState('')
   const snapshotQuery = useQuery({
@@ -22,25 +25,46 @@ export function BatchSnapshotPage() {
     enabled: Boolean(id),
     staleTime: Number.POSITIVE_INFINITY,
   })
+  const { data: snapshotData, refetch: refetchSnapshot } = snapshotQuery
   const createReport = useMutation({
     mutationFn: () => batchApi.createReport(id ?? ''),
-    onSuccess: () => snapshotQuery.refetch(),
+    onSuccess: () => refetchSnapshot(),
+  })
+  const terminateBatch = useMutation({
+    mutationFn: () => batchApi.cancel(id ?? ''),
+    onSuccess: () => {
+      setLiveState(null)
+      void refetchSnapshot()
+      void queryClient.invalidateQueries({ queryKey: ['batches'] })
+    },
   })
 
   const handleEvent = useCallback((event: BatchEventEnvelope) => {
     setLiveState((current) =>
-      current ? applyBatchEvent(current, event) : snapshotQuery.data ? applyBatchEvent(createLiveBatchState(snapshotQuery.data), event) : current,
+      current ? applyBatchEvent(current, event) : snapshotData ? applyBatchEvent(createLiveBatchState(snapshotData), event) : current,
     )
-  }, [snapshotQuery.data])
+  }, [snapshotData])
 
   const handleFallback = useCallback(() => {
     setLiveState(null)
-    void snapshotQuery.refetch()
-  }, [snapshotQuery])
+    void refetchSnapshot()
+  }, [refetchSnapshot])
 
   const { connectionState, latestEventId } = useBatchEvents(id, handleEvent, handleFallback)
-  const snapshot = liveState ?? (snapshotQuery.data ? createLiveBatchState(snapshotQuery.data) : null)
+  const snapshot = liveState ?? (snapshotData ? createLiveBatchState(snapshotData) : null)
+  const connectionStatus = connectionState === 'live' ? 'connected' : connectionState
   const monitorIteration = snapshot?.iterations.find((iteration) => iteration.id === monitorIterationId)
+  const executionsById = useMemo(
+    () => new Map(snapshot?.executions.map((execution) => [execution.id, execution]) ?? []),
+    [snapshot],
+  )
+  const hasCancelableIterations = useMemo(
+    () =>
+      snapshot?.iterations.some((iteration) =>
+        CANCELABLE_ITERATION_STATUSES.has(iteration.status) && !iteration.cancelRequested,
+      ) ?? false,
+    [snapshot],
+  )
   const progress = useMemo(() => {
     if (!snapshot?.counts.total) return 0
     const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0) + (snapshot.counts.cancelled ?? 0)
@@ -74,8 +98,12 @@ export function BatchSnapshotPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <StatusBadge id="event-connection-state" status={connectionState} />
-          <Button data-id="snapshot-reload-button" variant="secondary" onClick={() => snapshotQuery.refetch()}>Reload snapshot</Button>
+          <StatusBadge id="event-connection-state" status={connectionStatus} />
+          <StatusBadge id="batch-snapshot-status" status={snapshot.batch.status} />
+          <Button data-id="snapshot-reload-button" variant="secondary" onClick={() => refetchSnapshot()}>Reload snapshot</Button>
+          <Button data-id="terminate-batch-button" variant="secondary" onClick={() => terminateBatch.mutate()} disabled={!hasCancelableIterations || terminateBatch.isPending}>
+            {terminateBatch.isPending ? 'Terminating...' : 'Terminate batch'}
+          </Button>
         </div>
       </section>
 
@@ -170,15 +198,28 @@ export function BatchSnapshotPage() {
           </Card>
 
           <section data-id="snapshot-iterations" className="grid gap-2">
-            {snapshot.iterations.map((iteration) => (
-              <div data-id={`snapshot-iteration-${iteration.id}`} className="harness-card-base flex items-center justify-between p-4" key={iteration.id}>
-                <span>Iteration {iteration.iterationNumber}</span>
-                <div className="flex items-center gap-2">
-                  <button data-id={`open-live-monitor-${iteration.id}`} className="harness-button-secondary" type="button" onClick={() => setMonitorIterationId(iteration.id)}>Open Live Monitor</button>
-                  <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
+            {snapshot.iterations.map((iteration) => {
+              const execution = executionsById.get(iteration.executionId)
+              const model = execution?.modelId ? snapshot.catalog?.models?.[execution.modelId] : undefined
+              const taskLabel = execution?.snapshotTaskId || (execution?.taskId ? snapshot.catalog?.tasks?.[execution.taskId]?.taskId : '') || 'Task'
+              const modelLabel = model?.displayName || model?.modelName || 'Model'
+              return (
+                <div data-id={`snapshot-iteration-${iteration.id}`} className="harness-card-base grid gap-3 p-4" key={iteration.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p data-id={`snapshot-iteration-title-${iteration.id}`} className="font-semibold">{taskLabel} · Iteration {iteration.iterationNumber}</p>
+                      <p data-id={`snapshot-iteration-model-${iteration.id}`} className="harness-subtitle">{modelLabel}</p>
+                    </div>
+                    <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
+                  </div>
+                  <p data-id={`snapshot-iteration-prompt-${iteration.id}`} className="line-clamp-2 text-sm text-[var(--steel)]">{execution?.snapshotPrompt ?? 'No prompt snapshot available.'}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p data-id={`snapshot-iteration-execution-${iteration.id}`} className="harness-code-inline">execution={iteration.executionId}</p>
+                    <button data-id={`open-live-monitor-${iteration.id}`} className="harness-button-secondary" type="button" onClick={() => setMonitorIterationId(iteration.id)}>Open Live Monitor</button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </section>
         </aside>
       </section>

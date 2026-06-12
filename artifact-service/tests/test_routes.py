@@ -34,10 +34,11 @@ class FakeRepository:
     def __init__(self):
         self.created = []
         self.items = []
+        self.upserts = []
 
     def create(self, scope, artifact_type, object_key, size_bytes, content_hash, metadata):
         item = {
-            "id": "artifact-1",
+            "id": f"artifact-{len(self.items) + 1}",
             "scope": scope,
             "artifactType": artifact_type,
             "objectKey": object_key,
@@ -48,6 +49,14 @@ class FakeRepository:
         }
         self.items.append(item)
         return item
+
+    def upsert(self, scope, artifact_type, object_key, size_bytes, content_hash, metadata):
+        self.upserts.append(object_key)
+        for item in self.items:
+            if item["scope"] == scope and item["artifactType"] == artifact_type and item["objectKey"] == object_key:
+                item.update({"sizeBytes": size_bytes, "contentHash": content_hash, "metadata": metadata})
+                return item
+        return self.create(scope, artifact_type, object_key, size_bytes, content_hash, metadata)
 
     def list_by_scope(self, scope):
         return [item for item in self.items if item["scope"] == scope]
@@ -223,5 +232,57 @@ def test_routes_archive_batch_collects_iteration_artifacts_by_metadata(tmp_path)
         archive_path.write_bytes(response.content)
         with zipfile.ZipFile(archive_path) as archive:
             assert archive.namelist() == ["iterations/i1/logs/execution.log"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_save_artifact_with_upsert_keeps_artifact_id_stable(tmp_path):
+    store = FakeStore(tmp_path)
+    repo = FakeRepository()
+    app.dependency_overrides[get_store] = lambda: store
+    app.dependency_overrides[get_repository] = lambda: repo
+    client = TestClient(app)
+
+    try:
+        first = client.post(
+            "/internal/artifacts",
+            data={
+                "scope": "iterations/i1",
+                "artifactType": "timeline",
+                "metadata": json.dumps({"filename": "action_timeline.json", "stepCount": 1}),
+                "upsert": "true",
+            },
+            files={"file": ("action_timeline.json", b'{"steps": 1}', "application/json")},
+        )
+        second = client.post(
+            "/internal/artifacts",
+            data={
+                "scope": "iterations/i1",
+                "artifactType": "timeline",
+                "metadata": json.dumps({"filename": "action_timeline.json", "stepCount": 2}),
+                "upsert": "true",
+            },
+            files={"file": ("action_timeline.json", b'{"steps": 2}', "application/json")},
+        )
+        assert first.status_code == 201
+        assert second.status_code == 201
+        # Same artifact id, updated content and metadata; only one row exists.
+        assert second.json()["id"] == first.json()["id"]
+        assert second.json()["metadata"]["stepCount"] == 2
+        assert len(repo.items) == 1
+        download = client.get(f"/internal/artifacts/{first.json()['id']}")
+        assert download.content == b'{"steps": 2}'
+        # A plain save (no upsert) still creates a new row.
+        third = client.post(
+            "/internal/artifacts",
+            data={
+                "scope": "iterations/i1",
+                "artifactType": "timeline",
+                "metadata": json.dumps({"filename": "action_timeline.json"}),
+            },
+            files={"file": ("action_timeline.json", b'{"steps": 3}', "application/json")},
+        )
+        assert third.json()["id"] != first.json()["id"]
+        assert len(repo.items) == 2
     finally:
         app.dependency_overrides.clear()
