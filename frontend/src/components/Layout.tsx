@@ -17,7 +17,7 @@ const navItems = [
 export function Layout() {
   const navigate = useNavigate()
   const [sidebarExpanded, setSidebarExpanded] = useState(false)
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const { isAdmin, logout, user } = useAuth()
   const userName = user?.displayName || user?.email?.split('@')[0] || 'User'
   const userEmail = user?.email || ''

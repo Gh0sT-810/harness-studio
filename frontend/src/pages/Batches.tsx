@@ -9,9 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select } from '@/components/ui/select'
 import { batchApi, gymApi, modelApi, taskApi } from '@/lib/api'
 
+const ACTIVE_STATUSES = ['executing', 'running', 'pending', 'retrying', 'queued']
+
 export function Batches() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all')
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('Phase 2 Batch')
   const [gymId, setGymId] = useState('')
@@ -32,15 +35,28 @@ export function Batches() {
       (model) => model.enabled !== false && enabledProviderIds.has(model.providerId),
     )
   }, [modelsQuery.data, providersQuery.data])
+  const gymName = (id: string) => (gymsQuery.data ?? []).find((gym) => gym.id === id)?.name ?? 'Unknown gym'
   const filtered = useMemo(
     () =>
       (batchesQuery.data ?? []).filter((batch) => {
-        const gymName = (gymsQuery.data ?? []).find((gym) => gym.id === batch.gymId)?.name ?? ''
-        const query = search.toLowerCase()
-        return [batch.name, batch.status, gymName].some((value) => value.toLowerCase().includes(query))
+        const name = (gymsQuery.data ?? []).find((gym) => gym.id === batch.gymId)?.name ?? ''
+        const matchesSearch = [batch.name, batch.status, name].some((value) => value.toLowerCase().includes(search.toLowerCase()))
+        if (!matchesSearch) return false
+        if (statusFilter === 'all') return true
+        const isActive = ACTIVE_STATUSES.includes(batch.status.toLowerCase())
+        return statusFilter === 'active' ? isActive : batch.status.toLowerCase() === 'completed'
       }),
-    [batchesQuery.data, gymsQuery.data, search],
+    [batchesQuery.data, gymsQuery.data, search, statusFilter],
   )
+  const metrics = useMemo(() => {
+    const all = batchesQuery.data ?? []
+    return {
+      total: all.length,
+      running: all.filter((b) => ['executing', 'running'].includes(b.status.toLowerCase())).length,
+      completed: all.filter((b) => b.status.toLowerCase() === 'completed').length,
+      iterations: all.reduce((sum, b) => sum + (b.iterationCount ?? 0), 0),
+    }
+  }, [batchesQuery.data])
 
   const createBatch = useMutation({
     mutationFn: () => batchApi.create(gymId, taskIds, modelIds, iterationCount, name),
@@ -78,8 +94,20 @@ export function Batches() {
         </div>
       </section>
 
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="harness-metric"><p className="harness-metric-label">Total batches</p><p className="harness-metric-value">{metrics.total}</p></div>
+        <div className="harness-metric"><p className="harness-metric-label">Running</p><p className="harness-metric-value" style={{ color: 'var(--brand-green)' }}>{metrics.running}</p></div>
+        <div className="harness-metric"><p className="harness-metric-label">Completed</p><p className="harness-metric-value">{metrics.completed}</p></div>
+        <div className="harness-metric"><p className="harness-metric-label">Iterations</p><p className="harness-metric-value">{metrics.iterations}</p></div>
+      </section>
+
       <section data-id="batches-actions-section" className="harness-actions-section">
-        <p data-id="batches-actions-label" className="harness-actions-label">Actions:</p>
+        <p data-id="batches-actions-label" className="harness-actions-label">Filter</p>
+        <div className="harness-seg">
+          <button type="button" className={statusFilter === 'active' ? 'active' : ''} onClick={() => setStatusFilter('active')}>Active</button>
+          <button type="button" className={statusFilter === 'all' ? 'active' : ''} onClick={() => setStatusFilter('all')}>All</button>
+          <button type="button" className={statusFilter === 'completed' ? 'active' : ''} onClick={() => setStatusFilter('completed')}>Completed</button>
+        </div>
         <div className="harness-actions-row">
           <input data-id="batches-search" className="harness-input min-w-64 flex-1" placeholder="Search batches" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Button
@@ -129,7 +157,7 @@ export function Batches() {
                 <p className="harness-actions-label">Models</p>
                 {enabledModels.length === 0 ? (
                   <p data-id="batch-models-empty" className="harness-subtitle">
-                    No enabled models found. Create models under Admin → Model Registry for enabled providers.
+                    No enabled models found. Create models under Admin &rarr; Model Registry for enabled providers.
                   </p>
                 ) : null}
                 {enabledModels.map((model) => (
@@ -150,25 +178,28 @@ export function Batches() {
       ) : null}
 
       {filtered.length === 0 ? <EmptyState id="batches-empty" message="No batches found." /> : null}
-      <section data-id="batches-list" className="harness-dashboard-grid">
-        {filtered.map((batch) => (
-          <Card data-id={`batch-card-${batch.id}`} className="harness-card-padding" key={batch.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>{batch.name}</CardTitle>
-                <StatusBadge id={`batch-status-${batch.id}`} status={batch.status} />
-              </div>
-              <CardDescription>{batch.iterationCount} iteration(s)</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p data-id={`batch-gym-${batch.id}`} className="harness-subtitle">{(gymsQuery.data ?? []).find((gym) => gym.id === batch.gymId)?.name ?? 'Unknown gym'}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button data-id={`batch-snapshot-link-${batch.id}`} variant="secondary" asChild><Link to={`/batches/${batch.id}/runs`}>Open snapshot</Link></Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      <div data-id="batches-list" className="harness-tablewrap">
+        <table>
+          <thead>
+            <tr><th>Batch</th><th>Gym</th><th>Iterations</th><th>Status</th><th aria-label="actions" /></tr>
+          </thead>
+          <tbody>
+            {filtered.map((batch) => (
+              <tr data-id={`batch-card-${batch.id}`} key={batch.id}>
+                <td><div className="font-semibold text-[var(--ink)]">{batch.name}</div></td>
+                <td data-id={`batch-gym-${batch.id}`} className="text-[var(--steel)]">{gymName(batch.gymId)}</td>
+                <td className="font-mono text-[var(--steel)]">{batch.iterationCount}</td>
+                <td><StatusBadge id={`batch-status-${batch.id}`} status={batch.status} /></td>
+                <td>
+                  <div className="flex justify-end">
+                    <Button data-id={`batch-snapshot-link-${batch.id}`} variant="secondary" size="sm" asChild><Link to={`/batches/${batch.id}/runs`}>Open snapshot</Link></Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

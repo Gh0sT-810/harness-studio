@@ -59,27 +59,35 @@ function TaskEditForm({ gyms, gymId, task }: { gyms: Gym[]; gymId: string; task:
         <CardDescription>Form sections adapt to the selected gym verification strategy.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form data-id="task-form" className="grid gap-3" onSubmit={handleSubmit}>
-          <Select
-            dataId="task-gym-select"
-            disabled
-            onValueChange={setSelectedGymId}
-            options={gymOptions}
-            placeholder="Select gym"
-            value={selectedGymId}
-          />
-          <input data-id="task-id-input" className="harness-input" placeholder="Task ID" value={externalTaskId} onChange={(event) => setExternalTaskId(event.target.value)} required />
-          <textarea data-id="task-prompt-input" className="harness-textarea min-h-24" placeholder="Prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} required />
-          {selectedGym?.verificationStrategy === 'grader_config' ? (
-            <textarea data-id="task-grader-config-input" className="harness-textarea harness-code-field min-h-24" value={graderConfig} onChange={(event) => setGraderConfig(event.target.value)} />
-          ) : null}
-          {selectedGym?.verificationStrategy === 'db_json_validator' ? (
-            <textarea data-id="task-db-validator-input" className="harness-textarea harness-code-field min-h-24" value={dbJsonValidator} onChange={(event) => setDbJsonValidator(event.target.value)} />
-          ) : null}
-          {selectedGym?.verificationStrategy === 'verifier_api_script' ? (
-            <input data-id="task-verifier-path-input" className="harness-input" placeholder="Verifier path" value={verifierPath} onChange={(event) => setVerifierPath(event.target.value)} />
-          ) : null}
-          <textarea data-id="task-simulator-config-input" className="harness-textarea harness-code-field min-h-20" value={simulatorConfig} onChange={(event) => setSimulatorConfig(event.target.value)} />
+        <form data-id="task-form" className="grid gap-4" onSubmit={handleSubmit}>
+          <div className="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
+            <div className="grid gap-3">
+              <input data-id="task-id-input" className="harness-input" placeholder="Task ID" value={externalTaskId} onChange={(event) => setExternalTaskId(event.target.value)} required />
+              <textarea data-id="task-prompt-input" className="harness-textarea min-h-32" placeholder="Prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} required />
+              {selectedGym?.verificationStrategy === 'grader_config' ? (
+                <textarea data-id="task-grader-config-input" className="harness-textarea harness-code-field min-h-24" value={graderConfig} onChange={(event) => setGraderConfig(event.target.value)} />
+              ) : null}
+              {selectedGym?.verificationStrategy === 'db_json_validator' ? (
+                <textarea data-id="task-db-validator-input" className="harness-textarea harness-code-field min-h-24" value={dbJsonValidator} onChange={(event) => setDbJsonValidator(event.target.value)} />
+              ) : null}
+              {selectedGym?.verificationStrategy === 'verifier_api_script' ? (
+                <input data-id="task-verifier-path-input" className="harness-input" placeholder="Verifier path" value={verifierPath} onChange={(event) => setVerifierPath(event.target.value)} />
+              ) : null}
+            </div>
+            <div className="grid gap-3">
+              <p className="harness-caption-bold">Settings</p>
+              <Select
+                dataId="task-gym-select"
+                disabled
+                onValueChange={setSelectedGymId}
+                options={gymOptions}
+                placeholder="Select gym"
+                value={selectedGymId}
+              />
+              <textarea data-id="task-simulator-config-input" className="harness-textarea harness-code-field min-h-20" value={simulatorConfig} onChange={(event) => setSimulatorConfig(event.target.value)} />
+              <p className="rounded-[var(--radius-md)] border border-[var(--hairline-soft)] bg-[var(--surface-soft)] p-3 text-xs text-[var(--steel)]">Changes apply to future batches only. Past runs keep the task definition they were executed with.</p>
+            </div>
+          </div>
           <div className="flex gap-2">
             <Button data-id="task-submit" type="submit">Save task</Button>
             <Button data-id="task-form-cancel" type="button" variant="secondary" asChild>

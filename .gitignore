@@ -29,6 +29,6 @@ data/artifacts/
 .idea/
 .vscode/
 graphify-out/
-docs/DESIGN.md
+docs/*.md
 .cursor/
 Agents.md

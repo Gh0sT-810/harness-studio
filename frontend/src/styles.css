@@ -121,6 +121,13 @@
     --hairline-soft: var(--dark-hairline-soft);
     --on-dark: #ffffff;
     --on-dark-muted: #b3b3b3;
+
+    /* Mission Control — calm dark-first atmosphere + sharper status signal */
+    --hero-sky-from: #0f3a33;
+    --hero-sky-to: #0a0a0a;
+    --brand-error: #f06262;
+    --brand-warn: #e0a82e;
+    --shadow-brand: rgba(0, 212, 164, 0.12) 0px 8px 28px;
   }
 
   :root.light {
@@ -151,6 +158,8 @@
     min-width: 320px;
     min-height: 100vh;
     margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   a {
@@ -176,19 +185,19 @@
   }
 
   .harness-kicker {
-    color: var(--brand-green-deep);
+    color: var(--brand-green);
     font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.03125rem;
+    font-weight: 700;
+    letter-spacing: 0.0625rem;
     line-height: 1.4;
     text-transform: uppercase;
   }
 
   .harness-title {
     color: var(--ink);
-    font-size: clamp(2rem, 4vw, 2.25rem);
-    font-weight: 600;
-    letter-spacing: -0.03125rem;
+    font-size: 1.625rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     line-height: 1.2;
   }
 
@@ -239,8 +248,8 @@
 
   .harness-card-title {
     color: var(--ink);
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 650;
     line-height: 1.4;
   }
 
@@ -452,10 +461,219 @@
   }
 
   .harness-card-base {
-    background: var(--canvas);
+    background: var(--surface);
     border: 1px solid var(--hairline);
     border-radius: var(--radius-lg);
     color: var(--ink);
+  }
+
+  .harness-login-wrap {
+    background:
+      radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--brand-green) 10%, transparent), transparent 38rem),
+      var(--canvas);
+  }
+
+  .harness-tilecard {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    padding: 1.15rem;
+    transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .harness-tilecard:hover {
+    border-color: var(--brand-green);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card);
+  }
+
+  .harness-tablewrap {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .harness-page table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--type-body-sm);
+  }
+
+  .harness-page thead th {
+    text-align: left;
+    font-size: var(--type-micro-uppercase);
+    text-transform: uppercase;
+    letter-spacing: 0.03125rem;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 0.7rem 0.9rem;
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .harness-page tbody td {
+    padding: 0.72rem 0.9rem;
+    border-bottom: 1px solid var(--hairline-soft);
+    vertical-align: middle;
+  }
+
+  .harness-page tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .harness-page tbody tr {
+    transition: background 100ms ease;
+  }
+
+  .harness-page tbody tr:hover {
+    background: var(--surface-soft);
+  }
+
+  .harness-metric {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    padding: 1.05rem 1.15rem;
+  }
+
+  .harness-metric-label {
+    color: var(--muted);
+    font-size: var(--type-micro-uppercase);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03125rem;
+  }
+
+  .harness-metric-value {
+    color: var(--ink);
+    font-size: 1.7rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 0.35rem;
+    font-family: var(--font-mono);
+  }
+
+  .harness-tabs {
+    display: flex;
+    gap: 0.2rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .harness-tab {
+    padding: 0.6rem 0.9rem;
+    font-weight: 600;
+    font-size: var(--type-body-sm);
+    color: var(--steel);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .harness-tab:hover {
+    color: var(--ink);
+  }
+
+  .harness-tab-active {
+    color: var(--ink);
+    border-bottom-color: var(--brand-green);
+  }
+
+  .harness-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 1.25rem;
+    padding: 0 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--type-micro-uppercase);
+    font-weight: 600;
+    background: var(--surface-soft);
+    color: var(--steel);
+    border: 1px solid var(--hairline-soft);
+  }
+
+  .harness-log-line {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.28rem 0;
+    border-bottom: 1px solid var(--hairline-soft);
+    color: var(--steel);
+  }
+
+  .harness-button-primary,
+  .harness-button-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-weight: 600;
+    font-size: var(--type-body-sm);
+    line-height: 1.3;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 130ms ease, border-color 130ms ease, color 130ms ease;
+  }
+
+  .harness-button-primary {
+    background: var(--brand-green);
+    border-color: var(--brand-green);
+    color: var(--on-accent);
+  }
+
+  .harness-button-primary:hover {
+    background: var(--brand-green-deep);
+    border-color: var(--brand-green-deep);
+  }
+
+  .harness-button-secondary {
+    background: var(--surface);
+    border-color: var(--hairline);
+    color: var(--ink);
+  }
+
+  .harness-button-secondary:hover {
+    border-color: var(--steel);
+    background: var(--surface-soft);
+  }
+
+  .harness-button-primary:disabled,
+  .harness-button-secondary:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .harness-seg {
+    display: inline-flex;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    padding: 2px;
+  }
+
+  .harness-seg button {
+    border: 0;
+    background: transparent;
+    color: var(--steel);
+    font-weight: 600;
+    font-size: var(--type-micro);
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms ease, color 120ms ease;
+  }
+
+  .harness-seg button:hover {
+    color: var(--ink);
+  }
+
+  .harness-seg button.active {
+    background: var(--surface-elevated);
+    color: var(--ink);
+    box-shadow: var(--shadow-subtle);
   }
 
   .harness-card-feature,
@@ -609,9 +827,21 @@
   }
 
   .harness-sidebar-nav-item-active {
-    background: var(--surface);
+    background: color-mix(in srgb, var(--brand-green) 12%, transparent);
     color: var(--ink);
     font-weight: 500;
+    position: relative;
+  }
+
+  .harness-sidebar-nav-item-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--brand-green);
   }
 
   .harness-sidebar-section-header {
@@ -643,10 +873,15 @@
     color: var(--on-accent);
   }
 
-  .harness-badge-required,
-  .harness-badge-error {
+  .harness-badge-required {
     background: var(--brand-error);
     color: var(--on-dark);
+  }
+
+  .harness-badge-error {
+    background: color-mix(in srgb, var(--brand-error) 16%, var(--canvas));
+    border-color: color-mix(in srgb, var(--brand-error) 38%, transparent);
+    color: var(--brand-error);
   }
 
   .harness-badge-type {
@@ -678,6 +913,35 @@
     background: var(--surface);
     border-color: var(--hairline);
     color: var(--steel);
+  }
+
+  .harness-badge-active {
+    background: color-mix(in srgb, var(--brand-green) 16%, var(--canvas));
+    border-color: color-mix(in srgb, var(--brand-green) 40%, transparent);
+    color: var(--brand-green-deep);
+  }
+
+  .harness-badge-success::before,
+  .harness-badge-warning::before,
+  .harness-badge-error::before,
+  .harness-badge-active::before {
+    content: "";
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-right: 0.4rem;
+    border-radius: var(--radius-full);
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  .harness-badge-active::before {
+    animation: harness-status-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes harness-status-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
   }
 
   .harness-empty-state {

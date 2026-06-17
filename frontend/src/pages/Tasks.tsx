@@ -162,25 +162,30 @@ export function Tasks() {
       ) : null}
 
       {filtered.length === 0 ? <EmptyState id="tasks-empty" message="No tasks found." /> : null}
-      <section data-id="tasks-list" className="harness-dashboard-grid">
-        {filtered.map((task) => (
-          <Card data-id={`task-card-${task.id}`} className="harness-card-padding" key={task.id}>
-            <CardHeader>
-              <CardTitle>{task.taskId}</CardTitle>
-              <CardDescription>{task.prompt}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p data-id={`task-gym-${task.id}`} className="harness-subtitle">{gyms.find((gym) => gym.id === task.gymId)?.name ?? 'Unknown gym'}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button data-id={`task-edit-${task.id}`} variant="secondary" asChild>
-                  <Link to={`/gyms/${task.gymId}/tasks/${task.id}/edit`}>Edit</Link>
-                </Button>
-                <Button data-id={`task-delete-${task.id}`} variant="ghost" onClick={() => deleteTask.mutate(task.id)}>Delete</Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      <div data-id="tasks-list" className="harness-tablewrap overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Task</th><th>Gym</th><th>Prompt</th><th aria-label="actions" /></tr>
+          </thead>
+          <tbody>
+            {filtered.map((task) => (
+              <tr data-id={`task-card-${task.id}`} key={task.id}>
+                <td className="font-semibold text-[var(--ink)]">{task.taskId}</td>
+                <td data-id={`task-gym-${task.id}`} className="whitespace-nowrap text-[var(--steel)]">{gyms.find((gym) => gym.id === task.gymId)?.name ?? 'Unknown gym'}</td>
+                <td className="max-w-md truncate text-[var(--steel)]">{task.prompt}</td>
+                <td>
+                  <div className="flex justify-end gap-2">
+                    <Button data-id={`task-edit-${task.id}`} variant="secondary" size="sm" asChild>
+                      <Link to={`/gyms/${task.gymId}/tasks/${task.id}/edit`}>Edit</Link>
+                    </Button>
+                    <Button data-id={`task-delete-${task.id}`} variant="ghost" size="sm" onClick={() => deleteTask.mutate(task.id)}>Delete</Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

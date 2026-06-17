@@ -151,7 +151,7 @@ export function BrowserReplay({
       <div data-id="live-monitor-browser-chrome" className="border-b border-[var(--hairline)] bg-[var(--surface-soft)] p-3">
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-full bg-[var(--brand-error)]" />
-          <span className="h-3 w-3 rounded-full bg-[var(--brand-amber)]" />
+          <span className="h-3 w-3 rounded-full bg-[var(--brand-warn)]" />
           <span className="h-3 w-3 rounded-full bg-[var(--brand-green)]" />
           <p data-id="live-monitor-url" className="harness-code-inline min-w-0 flex-1 overflow-hidden text-ellipsis">{step?.url ?? 'about:blank'}</p>
           {frame.isFetching ? (

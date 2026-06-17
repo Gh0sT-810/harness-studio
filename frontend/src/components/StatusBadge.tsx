@@ -9,7 +9,9 @@ export function StatusBadge({ status, id }: { status: string; id: string }) {
         ? 'destructive'
         : normalized === 'pending' || normalized === 'queued' || normalized === 'reconnecting' || normalized === 'fallback'
           ? 'warning'
-          : 'secondary'
+          : normalized === 'executing' || normalized === 'running' || normalized === 'in_progress' || normalized === 'retrying'
+            ? 'active'
+            : 'secondary'
 
   return (
     <Badge data-id={id} variant={variant} className="font-mono">

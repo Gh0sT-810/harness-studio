@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { EmptyState } from '@/components/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -297,51 +296,59 @@ export function Models({ embedded = false }: ModelsProps) {
         </section>
       ) : null}
       {message ? <p data-id="model-registry-message" className="harness-subtitle">{message}</p> : null}
-      <section data-id="providers-list" className="grid gap-3 md:grid-cols-2">
-        {providers.map((provider) => (
-          <Card data-id={`provider-card-${provider.id}`} className="harness-card-padding" key={provider.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle>{provider.displayName || provider.name}</CardTitle>
-                <Badge variant={provider.enabled ? 'tag' : 'secondary'}>{provider.enabled ? 'enabled' : 'disabled'}</Badge>
-              </div>
-              <CardDescription>{provider.adapterKey}</CardDescription>
-            </CardHeader>
-            {embedded ? (
-              <CardContent className="flex flex-wrap gap-2">
-                <Button data-id={`provider-edit-${provider.id}`} variant="secondary" onClick={() => editProvider(provider)}>Edit</Button>
-                <Button data-id={`provider-test-${provider.id}`} variant="secondary" onClick={() => testProvider.mutate(provider.id)}>Test</Button>
-                <Button data-id={`provider-disable-${provider.id}`} variant="ghost" onClick={() => updateProvider.mutate({ id: provider.id, payload: { ...provider, displayName: provider.displayName || provider.name, enabled: !provider.enabled } })}>{provider.enabled ? 'Disable' : 'Enable'}</Button>
-              </CardContent>
-            ) : null}
-          </Card>
-        ))}
-      </section>
+      <div data-id="providers-list" className="harness-tablewrap overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Provider</th><th>Adapter</th><th>Status</th>{embedded ? <th aria-label="actions" /> : null}</tr>
+          </thead>
+          <tbody>
+            {providers.map((provider) => (
+              <tr data-id={`provider-card-${provider.id}`} key={provider.id}>
+                <td className="font-semibold text-[var(--ink)]">{provider.displayName || provider.name}</td>
+                <td><span className="harness-code-inline">{provider.adapterKey}</span></td>
+                <td><Badge variant={provider.enabled ? 'tag' : 'secondary'}>{provider.enabled ? 'enabled' : 'disabled'}</Badge></td>
+                {embedded ? (
+                  <td>
+                    <div className="flex justify-end gap-2">
+                      <Button data-id={`provider-edit-${provider.id}`} variant="secondary" size="sm" onClick={() => editProvider(provider)}>Edit</Button>
+                      <Button data-id={`provider-test-${provider.id}`} variant="secondary" size="sm" onClick={() => testProvider.mutate(provider.id)}>Test</Button>
+                      <Button data-id={`provider-disable-${provider.id}`} variant="ghost" size="sm" onClick={() => updateProvider.mutate({ id: provider.id, payload: { ...provider, displayName: provider.displayName || provider.name, enabled: !provider.enabled } })}>{provider.enabled ? 'Disable' : 'Enable'}</Button>
+                    </div>
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {models.length === 0 ? <EmptyState id="models-empty" message="No model definitions found." /> : null}
-      <section data-id="models-list" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {models.map((model) => (
-          <Card data-id={`model-card-${model.id}`} className="harness-card-padding" key={model.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle>{model.displayName}</CardTitle>
-                {model.isDefault ? <Badge data-id={`model-default-${model.id}`} variant="tag">default</Badge> : null}
-              </div>
-              <CardDescription>{model.modelName}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="harness-code-inline w-fit">{model.id}</p>
-              {embedded ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button data-id={`model-edit-${model.id}`} variant="secondary" onClick={() => editModel(model)}>Edit</Button>
-                  <Button data-id={`model-default-action-${model.id}`} variant="secondary" onClick={() => setDefault.mutate(model.id)}>Set default</Button>
-                  <Button data-id={`model-test-${model.id}`} variant="secondary" onClick={() => testModel.mutate(model.id)}>Test</Button>
-                  <Button data-id={`model-delete-${model.id}`} variant="ghost" onClick={() => deleteModel.mutate(model.id)}>Disable</Button>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+      <div data-id="models-list" className="harness-tablewrap overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Model</th><th>Model name</th><th>ID</th><th>Default</th>{embedded ? <th aria-label="actions" /> : null}</tr>
+          </thead>
+          <tbody>
+            {models.map((model) => (
+              <tr data-id={`model-card-${model.id}`} key={model.id}>
+                <td className="font-semibold text-[var(--ink)]">{model.displayName}</td>
+                <td className="text-[var(--steel)]">{model.modelName}</td>
+                <td><span className="harness-code-inline">{model.id}</span></td>
+                <td>{model.isDefault ? <Badge data-id={`model-default-${model.id}`} variant="tag">default</Badge> : <span className="text-[var(--muted)]">&mdash;</span>}</td>
+                {embedded ? (
+                  <td>
+                    <div className="flex justify-end gap-2">
+                      <Button data-id={`model-edit-${model.id}`} variant="secondary" size="sm" onClick={() => editModel(model)}>Edit</Button>
+                      <Button data-id={`model-default-action-${model.id}`} variant="secondary" size="sm" onClick={() => setDefault.mutate(model.id)}>Set default</Button>
+                      <Button data-id={`model-test-${model.id}`} variant="secondary" size="sm" onClick={() => testModel.mutate(model.id)}>Test</Button>
+                      <Button data-id={`model-delete-${model.id}`} variant="ghost" size="sm" onClick={() => deleteModel.mutate(model.id)}>Disable</Button>
+                    </div>
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <Dialog
         onOpenChange={(open) => {

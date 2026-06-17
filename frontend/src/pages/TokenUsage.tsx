@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { EmptyState } from '@/components/EmptyState'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { tokenStore, usageApi } from '@/lib/api'
 
 export function TokenUsage() {
@@ -56,30 +55,39 @@ export function TokenUsage() {
 
 function Metric({ title, description }: { title: string; description: string }) {
   return (
-    <Card className="harness-card-padding">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-    </Card>
+    <div className="harness-metric">
+      <p className="harness-metric-label">{description}</p>
+      <p className="harness-metric-value">{title}</p>
+    </div>
   )
 }
 
 function Breakdown({ title, rows }: { title: string; rows: Array<{ id: string; name: string; totalTokens: number; totalCostUsd: number; runs: number }> }) {
+  const totalCost = rows.reduce((sum, row) => sum + row.totalCostUsd, 0)
   return (
-    <Card className="harness-card-padding">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-2">
-        {rows.map((row) => (
-          <div className="flex items-center justify-between border-b border-[var(--hairline-soft)] py-2" key={row.id}>
-            <span>{row.name || row.id}</span>
-            <span className="harness-code-inline">{row.totalTokens} tokens / ${row.totalCostUsd.toFixed(4)}</span>
-          </div>
-        ))}
-        {rows.length === 0 ? <p className="harness-subtitle">No usage records yet.</p> : null}
-      </CardContent>
-    </Card>
+    <div>
+      <p className="harness-card-title mb-2">{title}</p>
+      <div className="harness-tablewrap overflow-x-auto">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Runs</th><th>Tokens</th><th>Cost</th><th>Share</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td className="font-semibold text-[var(--ink)]">{row.name || row.id}</td>
+                <td className="font-mono text-[var(--steel)]">{row.runs}</td>
+                <td className="font-mono text-[var(--steel)]">{row.totalTokens}</td>
+                <td className="font-mono text-[var(--steel)]">${row.totalCostUsd.toFixed(4)}</td>
+                <td className="font-mono text-[var(--steel)]">{totalCost > 0 ? Math.round((row.totalCostUsd / totalCost) * 100) : 0}%</td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr><td colSpan={5} className="harness-subtitle">No usage records yet.</td></tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }

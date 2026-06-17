@@ -114,6 +114,22 @@ export function BatchSnapshotPage() {
         <SummaryCard id="snapshot-progress" title={`${progress}%`} description="terminal progress" />
       </section>
 
+      <div data-id="snapshot-progress-bar" className="harness-card-base harness-card-padding">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="harness-body-sm-medium">Terminal progress</span>
+          <span className="harness-micro">{progress}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-soft)]">
+          <div className="h-full rounded-full bg-[var(--brand-green)] transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-[var(--steel)]">
+          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-green)' }}>{snapshot.counts.passed ?? 0}</span> passed</span>
+          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-error)' }}>{snapshot.counts.failed ?? 0}</span> failed</span>
+          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-error)' }}>{snapshot.counts.crashed ?? 0}</span> crashed</span>
+          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-warn)' }}>{snapshot.counts.pending ?? 0}</span> pending</span>
+        </div>
+      </div>
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <div className="grid gap-4">
           <Card data-id="failure-diagnostics-panel" className="harness-card-padding">
@@ -230,11 +246,9 @@ export function BatchSnapshotPage() {
 
 function SummaryCard({ id, title, description }: { id: string; title: string; description: string }) {
   return (
-    <Card data-id={id} className="harness-card-padding">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-    </Card>
+    <div data-id={id} className="harness-metric">
+      <p className="harness-metric-label">{description}</p>
+      <p className="harness-metric-value">{title}</p>
+    </div>
   )
 }

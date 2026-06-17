@@ -10,7 +10,7 @@ const badgeVariants = cva(
       variant: {
         default: 'harness-badge-muted',
         secondary: 'harness-badge-muted',
-        destructive: 'harness-badge-error border-transparent',
+        destructive: 'harness-badge-error',
         outline: 'border-[var(--hairline)] text-[var(--ink)]',
         discount: 'harness-badge-discount border-transparent',
         required: 'harness-badge-required border-transparent rounded-sm uppercase tracking-[0.5px]',
@@ -18,6 +18,7 @@ const badgeVariants = cva(
         tag: 'harness-badge-tag border-transparent rounded-sm',
         success: 'harness-badge-success',
         warning: 'harness-badge-warning',
+        active: 'harness-badge-active',
       },
     },
     defaultVariants: {

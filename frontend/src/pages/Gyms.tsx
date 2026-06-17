@@ -122,23 +122,28 @@ export function Gyms() {
       {filtered.length === 0 ? <EmptyState id="gyms-empty" message="No gyms found." /> : null}
       <section data-id="gyms-grid" className="harness-dashboard-grid">
         {filtered.map((gym) => (
-          <Card data-id={`gym-card-${gym.id}`} className="harness-card-padding" key={gym.id}>
-            <CardHeader>
-              <CardTitle>{gym.name}</CardTitle>
-              <CardDescription>{gym.baseUrl}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p data-id={`gym-strategy-${gym.id}`} className="harness-code-inline w-fit">{gym.verificationStrategy}</p>
-              <p data-id={`gym-task-count-${gym.id}`} className="harness-subtitle">{gym.taskCount ?? 0} tasks</p>
-              <div className="flex flex-wrap gap-2">
-                <Button data-id={`gym-tasks-link-${gym.id}`} variant="secondary" asChild><Link to={`/gyms/${gym.id}/tasks`}>Tasks</Link></Button>
-                <Button data-id={`gym-open-${gym.id}`} variant="secondary" asChild><a href={gym.baseUrl} target="_blank" rel="noreferrer">Open</a></Button>
-                <Button data-id={`gym-edit-${gym.id}`} variant="ghost" onClick={() => editGym(gym)}>Edit</Button>
-                <Button data-id={`gym-delete-${gym.id}`} variant="ghost" onClick={() => deleteGym.mutate(gym.id)}>Delete</Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div data-id={`gym-card-${gym.id}`} className="harness-tilecard" key={gym.id}>
+            <div className="flex items-center justify-between gap-2">
+              <span data-id={`gym-strategy-${gym.id}`} className="harness-tag">{gym.verificationStrategy}</span>
+              <span data-id={`gym-task-count-${gym.id}`} className="harness-micro shrink-0">{gym.taskCount ?? 0} tasks</span>
+            </div>
+            <h3 className="harness-card-title mt-3">{gym.name}</h3>
+            <p className="harness-subtitle mt-1 truncate">{gym.baseUrl}</p>
+            <hr className="my-4 border-0 border-t border-[var(--hairline-soft)]" />
+            <div className="flex flex-wrap gap-2">
+              <Button data-id={`gym-tasks-link-${gym.id}`} variant="secondary" asChild><Link to={`/gyms/${gym.id}/tasks`}>Tasks</Link></Button>
+              <Button data-id={`gym-open-${gym.id}`} variant="secondary" asChild><a href={gym.baseUrl} target="_blank" rel="noreferrer">Open</a></Button>
+              <Button data-id={`gym-edit-${gym.id}`} variant="ghost" onClick={() => editGym(gym)}>Edit</Button>
+              <Button data-id={`gym-delete-${gym.id}`} variant="ghost" onClick={() => deleteGym.mutate(gym.id)}>Delete</Button>
+            </div>
+          </div>
         ))}
+        <button data-id="gym-new-tile" type="button" onClick={() => { resetForm(); setShowForm(true) }} className="harness-tilecard grid min-h-[8rem] place-items-center border-dashed text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <span className="text-center">
+            <span className="block text-2xl leading-none">+</span>
+            <span className="mt-1 block font-semibold">New gym</span>
+          </span>
+        </button>
       </section>
     </div>
   )
