@@ -105,7 +105,7 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
           followLive={followLive}
           onContinueLive={() => setFollowLive(true)}
         />
-        <BrowserReplay steps={steps} selectedIndex={effectiveSelectedIndex} />
+        <BrowserReplay steps={steps} selectedIndex={effectiveSelectedIndex} isLiveFollowing={isLive && followLive} />
         <FileBrowser files={files} />
       </div>
     </div>

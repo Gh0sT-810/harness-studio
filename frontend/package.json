@@ -13,8 +13,8 @@
   },
   "keywords": [],
   "author": "",
-  "license": "UNLICENSED",
-  "description": "",
+  "license": "AGPL-3.0-or-later",
+  "description": "Harness Studio frontend — UI for evaluating vision-language and computer-use agents.",
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.3.0",

@@ -26,7 +26,15 @@ import { prefetchFrame } from '@/lib/frame-cache'
  * crossfaded in (see use-screenshot-frame.ts) — the stage never unmounts
  * between steps, so there is no loading flash mid-playback.
  */
-export function BrowserReplay({ steps, selectedIndex }: { steps: TimelineStep[]; selectedIndex: number }) {
+export function BrowserReplay({
+  steps,
+  selectedIndex,
+  isLiveFollowing = false,
+}: {
+  steps: TimelineStep[]
+  selectedIndex: number
+  isLiveFollowing?: boolean
+}) {
   const step: TimelineStep | undefined = steps[selectedIndex]
   const [selection, setSelection] = useState<{ stepId: string | undefined; mode: 'before' | 'after' }>({ stepId: undefined, mode: 'after' })
   const [containerSize, setContainerSize] = useState<Size | null>(null)
@@ -36,7 +44,10 @@ export function BrowserReplay({ steps, selectedIndex }: { steps: TimelineStep[];
   const hasBefore = Boolean(step?.beforeArtifactId)
   const hasAfter = Boolean(step?.afterArtifactId)
   const hasBeforeAfter = hasBefore && hasAfter
-  const selectedMode = selection.stepId === step?.id ? selection.mode : 'after'
+  // Browsing defaults to "before" ("What will be performed", legacy parity);
+  // live-follow shows the newest "after" — the screen as it is right now.
+  const fallbackMode = isLiveFollowing ? 'after' : 'before'
+  const selectedMode = selection.stepId === step?.id ? selection.mode : fallbackMode
   const effectiveMode = hasBeforeAfter ? selectedMode : hasAfter ? 'after' : 'before'
   const artifactId = effectiveMode === 'before' ? step?.beforeArtifactId : step?.afterArtifactId
 
@@ -206,19 +217,20 @@ export function BrowserReplay({ steps, selectedIndex }: { steps: TimelineStep[];
               />
             ))}
             {showPointer && coordinates && pointerPoint ? (
-              <div
-                data-id="live-monitor-coordinate-overlay"
-                className="pointer-events-none absolute z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2"
-                style={{ left: `${pointerPoint.x}px`, top: `${pointerPoint.y}px` }}
-              >
-                <span className="absolute inset-0 animate-pulse rounded-full border-[3px] border-[var(--brand-error)] bg-[color-mix(in_srgb,var(--brand-error)_16%,transparent)] shadow-[0_0_0_8px_color-mix(in_srgb,var(--brand-error)_16%,transparent)]" />
-                <svg data-id="live-monitor-cursor-icon" className="absolute left-5 top-5 -translate-x-[20%] -translate-y-[20%] drop-shadow-md" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M3 3L10.5 20.5L13.5 13.5L20.5 10.5L3 3Z" fill="#ffffff" stroke="#000000" strokeWidth="1.5" />
-                </svg>
-                <span className="absolute left-8 top-[-1.875rem] rounded-md bg-[var(--brand-error)] px-2 py-1 font-mono text-[11px] font-semibold text-white shadow-md">
-                  {coordinates.label}
-                </span>
-              </div>
+              <>
+                {/* Pure action marker (ring + label): the mouse pointer is drawn
+                    exclusively by CursorLayer, never duplicated here. */}
+                <div
+                  data-id="live-monitor-coordinate-overlay"
+                  className="pointer-events-none absolute z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${pointerPoint.x}px`, top: `${pointerPoint.y}px` }}
+                >
+                  <span className="absolute inset-0 animate-pulse rounded-full border-[3px] border-[var(--brand-error)] bg-[color-mix(in_srgb,var(--brand-error)_16%,transparent)] shadow-[0_0_0_8px_color-mix(in_srgb,var(--brand-error)_16%,transparent)]" />
+                  <span className="absolute left-8 top-[-1.875rem] rounded-md bg-[var(--brand-error)] px-2 py-1 font-mono text-[11px] font-semibold text-white shadow-md">
+                    {coordinates.label}
+                  </span>
+                </div>
+              </>
             ) : null}
             {showActionOverlays && dragPoints && stage ? (
               <svg

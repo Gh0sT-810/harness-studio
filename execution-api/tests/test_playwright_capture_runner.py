@@ -164,7 +164,11 @@ def test_playwright_capture_runner_saves_screenshots_and_timeline_incrementally(
     timeline_writes = [item[4]["id"] for item in client.saved if item[0] == "timeline"]
     assert timeline_writes == ["artifact-2", "artifact-2"]
     assert result.steps[0].payload["beforeArtifactId"] == "artifact-1"
-    assert result.steps[0].payload["afterArtifactId"] == "artifact-3"
+    # The navigate step is self-complete: its after frame is the loaded page.
+    assert result.steps[0].payload["afterArtifactId"] == "artifact-1"
+    # The end-of-run frame lives on the terminal step instead.
+    assert result.steps[-1].payload["id"] == "step-final"
+    assert result.steps[-1].payload["afterArtifactId"] == "artifact-3"
     assert playwright.chromium.browser.viewport == {"width": 1280, "height": 800}
     assert playwright.stopped is True
     # Ditto frames: every screenshot is viewport-only.
@@ -315,9 +319,9 @@ def test_playwright_capture_runner_streams_steps_to_observer_without_duplicates(
     assert len(step_screenshot_writes) == 2
     assert len([step for step in result.steps if step.payload.get("type") == "model_action"]) == 1
 
-    # Observer saw the navigate step and the action step, with a stable timeline artifact id.
+    # Observer saw navigate, action, and terminal steps, with a stable timeline artifact id.
     step_ids = [step["id"] for step, _ in observer.steps]
-    assert step_ids == ["step-1", "step-2"]
+    assert step_ids == ["step-1", "step-2", "step-final"]
     timeline_ids = {timeline_id for _, timeline_id in observer.steps}
     assert timeline_ids == {result.timeline_artifact_id}
 
@@ -330,6 +334,31 @@ def test_playwright_capture_runner_streams_steps_to_observer_without_duplicates(
     action_step = next(step for step, _ in observer.steps if step["id"] == "step-2")
     assert "capture" in action_step
     assert "captureAfter" in action_step
+
+
+def test_playwright_capture_runner_self_completes_navigate_and_appends_final_step():
+    client = FakeArtifactClient()
+    runner = PlaywrightCaptureRunner(artifact_client=client, playwright_factory=lambda: FakePlaywright())
+
+    result = run_iteration(runner)
+
+    timeline_artifact = next(item[4] for item in client.saved if item[0] == "timeline")
+    timeline = json.loads(timeline_artifact["content"].decode())
+    navigate = timeline["steps"][0]
+    final = timeline["steps"][-1]
+
+    assert navigate["afterArtifactId"] == navigate["beforeArtifactId"] == "artifact-1"
+    assert navigate["captureAfter"] == navigate["capture"]
+    assert final["id"] == "step-final"
+    assert final["type"] == "final"
+    assert final["index"] == 2
+    assert final["message"] == "Final state"
+    assert final["afterArtifactId"] == "artifact-3"
+    assert "beforeArtifactId" not in final
+    assert final["captureAfter"] == final["capture"]
+    assert final["captureAfter"]["cursor"] == {"coordinateBasis": "viewport", "visible": False}
+    # total_steps now counts the terminal step too.
+    assert len(result.steps) == 2
 
 
 def test_playwright_capture_runner_swallows_observer_failures():

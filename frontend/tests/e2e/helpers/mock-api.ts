@@ -51,10 +51,13 @@ export async function seedAuthenticatedState(page: Page) {
 export type MockPhase2Options = {
   /** Artificial latency for screenshot artifact responses (transition tests). */
   artifactDelayMs?: number
+  /** Iteration status in the snapshot; 'passed' simulates a completed run. */
+  iterationStatus?: 'executing' | 'passed'
 }
 
 export async function mockPhase2Api(page: Page, options: MockPhase2Options = {}) {
   const artifactDelayMs = options.artifactDelayMs ?? 0
+  const iterationStatus = options.iterationStatus ?? 'executing'
   const artifactDelay = () => (artifactDelayMs > 0 ? new Promise((resolve) => setTimeout(resolve, artifactDelayMs)) : Promise.resolve())
   let batchCancelled = false
 
@@ -88,8 +91,8 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
         {
           batch: { ...mockBatch, status: batchCancelled ? 'cancelled' : mockBatch.status },
           executions: [{ id: 'e1', status: batchCancelled ? 'cancelled' : 'pending', taskId: mockTask.id, modelId: mockModel.id, snapshotTaskId: mockTask.taskId, snapshotPrompt: mockTask.prompt }],
-          iterations: [{ id: 'i1', executionId: 'e1', status: batchCancelled ? 'cancelled' : 'executing', iterationNumber: 1, timelineArtifactId: 'timeline-1' }],
-          counts: batchCancelled ? { total: 1, cancelled: 1 } : { total: 1, executing: 1 },
+          iterations: [{ id: 'i1', executionId: 'e1', status: batchCancelled ? 'cancelled' : iterationStatus, iterationNumber: 1, timelineArtifactId: 'timeline-1' }],
+          counts: batchCancelled ? { total: 1, cancelled: 1 } : { total: 1, [iterationStatus]: 1 },
           report: { status: 'not_configured' },
           catalog: {
             gyms: { [mockGym.id]: mockGym },
@@ -210,7 +213,7 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
             url: 'https://example.com',
             title: 'Demo Gym',
             beforeArtifactId: 'before-1',
-            afterArtifactId: 'after-1',
+            afterArtifactId: 'before-1',
             capture: viewportCapture(null),
             captureAfter: viewportCapture(null),
           },
@@ -257,6 +260,17 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
             beforeArtifactId: 'before-4',
             afterArtifactId: 'after-4',
             capture: fullPageCapture,
+          },
+          {
+            id: 'step-final',
+            index: 5,
+            type: 'final',
+            message: 'Final state',
+            url: 'https://example.com/legacy',
+            title: 'Legacy Frame',
+            afterArtifactId: 'after-1',
+            capture: viewportCapture({ x: 640, y: 360 }),
+            captureAfter: viewportCapture({ x: 640, y: 360 }),
           },
         ],
       },

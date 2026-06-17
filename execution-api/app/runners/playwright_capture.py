@@ -153,6 +153,8 @@ class PlaywrightCaptureRunner:
                 {"filename": "before.png", "timelineKind": "before", "capture": before_capture},
                 "image/png",
             )
+            # The navigate step is self-complete: its "after" is the loaded
+            # page itself, so live viewers never see a frame from the future.
             navigate_step = {
                 "id": "step-1",
                 "index": 1,
@@ -161,7 +163,9 @@ class PlaywrightCaptureRunner:
                 "url": iteration.get("gym_base_url", ""),
                 "title": title,
                 "beforeArtifactId": before_artifact["id"],
+                "afterArtifactId": before_artifact["id"],
                 "capture": before_capture,
+                "captureAfter": before_capture,
                 "occurredAt": _now(),
             }
             timeline_steps.append(navigate_step)
@@ -205,9 +209,24 @@ class PlaywrightCaptureRunner:
             {"filename": "after.png", "timelineKind": "after", "capture": after_capture},
             "image/png",
         )
-        navigate_step["afterArtifactId"] = after_artifact["id"]
-        navigate_step["captureAfter"] = after_capture
+        # Terminal step: the end-of-run frame (with the final cursor position)
+        # is its own selectable step instead of masquerading as step-1's after.
+        final_step = {
+            "id": "step-final",
+            "index": step_counter["next_index"],
+            "type": "final",
+            "message": "Final state",
+            "url": browser_state.get("url", ""),
+            "title": title,
+            "afterArtifactId": after_artifact["id"],
+            "capture": after_capture,
+            "captureAfter": after_capture,
+            "occurredAt": _now(),
+        }
+        step_counter["next_index"] += 1
+        timeline_steps.append(final_step)
         timeline_artifact = save_timeline()
+        notify_step(final_step)
         save_artifact("log", "execution.log", b"Playwright capture completed\n", {"filename": "execution.log"}, "text/plain")
         save_artifact(
             "conversation",
