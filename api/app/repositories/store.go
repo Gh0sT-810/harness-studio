@@ -263,7 +263,52 @@ ORDER BY gyms.created_at DESC
 		}
 		gyms = append(gyms, gym)
 	}
-	return gyms, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list gyms: %w", err)
+	}
+
+	stats, err := s.gymStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range gyms {
+		if st, ok := stats[gyms[i].ID]; ok {
+			gyms[i].PassRate = st.PassRate
+			gyms[i].Runs = st.Runs
+		}
+	}
+	return gyms, nil
+}
+
+type gymStat struct {
+	PassRate float64
+	Runs     int
+}
+
+func (s *Store) gymStats(ctx context.Context) (map[string]gymStat, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT executions.gym_id::text,
+       COALESCE(COUNT(*) FILTER (WHERE iterations.status = 'passed')::float / NULLIF(COUNT(iterations.id), 0), 0),
+       COUNT(iterations.id)::int
+FROM execution.executions
+JOIN execution.iterations ON iterations.execution_id = executions.id
+GROUP BY executions.gym_id
+`)
+	if err != nil {
+		return nil, fmt.Errorf("gym stats: %w", err)
+	}
+	defer rows.Close()
+	stats := make(map[string]gymStat)
+	for rows.Next() {
+		var id string
+		var st gymStat
+		if err := rows.Scan(&id, &st.PassRate, &st.Runs); err != nil {
+			return nil, fmt.Errorf("scan gym stat: %w", err)
+		}
+		stats[id] = st
+	}
+	return stats, rows.Err()
 }
 
 func (s *Store) GetGym(ctx context.Context, id string) (models.Gym, error) {
@@ -304,14 +349,14 @@ func (s *Store) CreateTask(ctx context.Context, req models.TaskRequest) (models.
 	row := s.db.QueryRow(ctx, `
 INSERT INTO catalog.tasks (gym_id, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at
+RETURNING id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at, difficulty, status, max_steps, start_url
 `, req.GymID, req.TaskID, req.Prompt, jsonValue(req.GraderConfig), jsonValue(req.SimulatorConfig), jsonValue(req.DBJSONValidator), req.VerifierPath)
 	return scanTask(row)
 }
 
 func (s *Store) ListTasks(ctx context.Context) ([]models.Task, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at
+SELECT id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at, difficulty, status, max_steps, start_url
 FROM catalog.tasks
 ORDER BY created_at DESC
 `)
@@ -328,12 +373,61 @@ ORDER BY created_at DESC
 		}
 		tasks = append(tasks, task)
 	}
-	return tasks, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list tasks: %w", err)
+	}
+
+	stats, err := s.taskStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range tasks {
+		if st, ok := stats[tasks[i].ID]; ok {
+			tasks[i].Runs = st.Runs
+			tasks[i].PassRate = st.PassRate
+			tasks[i].AvgSteps = st.AvgSteps
+		}
+	}
+	return tasks, nil
+}
+
+type taskStat struct {
+	Runs     int
+	PassRate float64
+	AvgSteps float64
+}
+
+func (s *Store) taskStats(ctx context.Context) (map[string]taskStat, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT executions.task_id::text,
+       COUNT(iterations.id)::int,
+       COALESCE(COUNT(*) FILTER (WHERE iterations.status = 'passed')::float / NULLIF(COUNT(iterations.id), 0), 0),
+       COALESCE(AVG(NULLIF(iterations.total_steps, 0))::float, 0)
+FROM execution.executions
+JOIN execution.iterations ON iterations.execution_id = executions.id
+WHERE executions.task_id IS NOT NULL
+GROUP BY executions.task_id
+`)
+	if err != nil {
+		return nil, fmt.Errorf("task stats: %w", err)
+	}
+	defer rows.Close()
+	stats := make(map[string]taskStat)
+	for rows.Next() {
+		var id string
+		var st taskStat
+		if err := rows.Scan(&id, &st.Runs, &st.PassRate, &st.AvgSteps); err != nil {
+			return nil, fmt.Errorf("scan task stat: %w", err)
+		}
+		stats[id] = st
+	}
+	return stats, rows.Err()
 }
 
 func (s *Store) GetTask(ctx context.Context, id string) (models.Task, error) {
 	row := s.db.QueryRow(ctx, `
-SELECT id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at
+SELECT id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at, difficulty, status, max_steps, start_url
 FROM catalog.tasks
 WHERE id = $1
 `, id)
@@ -344,10 +438,10 @@ func (s *Store) UpdateTask(ctx context.Context, id string, req models.TaskReques
 	row := s.db.QueryRow(ctx, `
 UPDATE catalog.tasks
 SET gym_id = $2, task_id = $3, prompt = $4, grader_config = $5, simulator_config = $6,
-    db_json_validator = $7, verifier_path = $8, updated_at = now()
+    db_json_validator = $7, verifier_path = $8, difficulty = $9, status = $10, max_steps = $11, start_url = $12, updated_at = now()
 WHERE id = $1
-RETURNING id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at
-`, id, req.GymID, req.TaskID, req.Prompt, jsonValue(req.GraderConfig), jsonValue(req.SimulatorConfig), jsonValue(req.DBJSONValidator), req.VerifierPath)
+RETURNING id::text, gym_id::text, task_id, prompt, grader_config, simulator_config, db_json_validator, verifier_path, import_metadata, export_metadata, created_at, updated_at, difficulty, status, max_steps, start_url
+`, id, req.GymID, req.TaskID, req.Prompt, jsonValue(req.GraderConfig), jsonValue(req.SimulatorConfig), jsonValue(req.DBJSONValidator), req.VerifierPath, req.Difficulty, req.Status, req.MaxSteps, req.StartURL)
 	return scanTask(row)
 }
 
@@ -361,7 +455,7 @@ func (s *Store) DeleteTask(ctx context.Context, id string) error {
 
 func (s *Store) ListModelProviders(ctx context.Context) ([]models.ModelProvider, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at, connection_status, last_tested_at
 FROM catalog.model_providers
 ORDER BY display_name
 `)
@@ -406,7 +500,7 @@ ORDER BY is_default DESC, display_name
 
 func (s *Store) GetModelProvider(ctx context.Context, id string) (models.ModelProvider, error) {
 	row := s.db.QueryRow(ctx, `
-SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+SELECT id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at, connection_status, last_tested_at
 FROM catalog.model_providers
 WHERE id = $1
 `, id)
@@ -418,7 +512,7 @@ func (s *Store) CreateModelProvider(ctx context.Context, req models.ModelProvide
 	row := s.db.QueryRow(ctx, `
 INSERT INTO catalog.model_providers (key, name, display_name, adapter_key, base_url, secret_ref, enabled, config)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at, connection_status, last_tested_at
 `, req.Key, name, req.DisplayName, req.AdapterKey, req.BaseURL, req.SecretRef, req.Enabled, jsonValue(req.Config))
 	return scanModelProvider(row)
 }
@@ -437,7 +531,7 @@ SET key = $2,
     config = $9,
     updated_at = now()
 WHERE id = $1
-RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at
+RETURNING id::text, key, name, display_name, adapter_key, base_url, secret_ref, enabled, config, created_at, updated_at, connection_status, last_tested_at
 `, id, req.Key, name, req.DisplayName, req.AdapterKey, req.BaseURL, req.SecretRef, req.Enabled, jsonValue(req.Config))
 	return scanModelProvider(row)
 }
@@ -667,14 +761,26 @@ func (s *Store) ListBatches(ctx context.Context) ([]models.Batch, error) {
 	rows, err := s.db.Query(ctx, `
 SELECT batches.id::text, batches.name, batches.gym_id::text, COALESCE(batches.created_by::text, ''),
        batches.iteration_count, batches.rerun_enabled, batches.notification_read, batches.created_at,
-       COALESCE(status_rollup.status, 'pending')
+       COALESCE(status_rollup.status, 'pending'), COALESCE(status_rollup.pass_rate, 0), COALESCE(cost_rollup.cost, 0), COALESCE(model_rollup.models, '')
 FROM execution.batches
 LEFT JOIN LATERAL (
-  SELECT execution.compute_batch_status(array_agg(iterations.status)) AS status
+  SELECT execution.compute_batch_status(array_agg(iterations.status)) AS status,
+         COALESCE(COUNT(*) FILTER (WHERE iterations.status = 'passed')::float / NULLIF(COUNT(*), 0), 0) AS pass_rate
   FROM execution.executions
   JOIN execution.iterations ON iterations.execution_id = executions.id
   WHERE executions.batch_id = batches.id
 ) status_rollup ON true
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost
+  FROM execution.token_usage
+  WHERE token_usage.batch_id = batches.id
+) cost_rollup ON true
+LEFT JOIN LATERAL (
+  SELECT string_agg(DISTINCT model_definitions.display_name, ', ') AS models
+  FROM execution.executions
+  JOIN catalog.model_definitions ON model_definitions.id = executions.model_id
+  WHERE executions.batch_id = batches.id
+) model_rollup ON true
 ORDER BY batches.created_at DESC
 `)
 	if err != nil {
@@ -783,9 +889,40 @@ FROM execution.token_usage
 	if err != nil {
 		return models.TokenUsageSummary{}, err
 	}
+	series, err := s.usageSeries(ctx, filters)
+	if err != nil {
+		return models.TokenUsageSummary{}, err
+	}
 	summary.ByModel = modelBreakdown
 	summary.ByGym = gymBreakdown
+	summary.Series = series
 	return summary, nil
+}
+
+func (s *Store) usageSeries(ctx context.Context, filters models.UsageFilters) ([]models.UsageBucket, error) {
+	where, args := usageWhere(filters)
+	rows, err := s.db.Query(ctx, `
+SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD'),
+       COALESCE(SUM(input_tokens + output_tokens), 0)::bigint,
+       COALESCE(SUM(cost_usd), 0)::float8
+FROM execution.token_usage
+`+where+`
+GROUP BY 1
+ORDER BY 1
+`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("token usage series: %w", err)
+	}
+	defer rows.Close()
+	var buckets []models.UsageBucket
+	for rows.Next() {
+		var bucket models.UsageBucket
+		if err := rows.Scan(&bucket.Date, &bucket.TotalTokens, &bucket.TotalCostUSD); err != nil {
+			return nil, fmt.Errorf("scan usage series: %w", err)
+		}
+		buckets = append(buckets, bucket)
+	}
+	return buckets, rows.Err()
 }
 
 func (s *Store) GetTokenUsageFilters(ctx context.Context) (models.TokenUsageFilters, error) {
@@ -878,7 +1015,46 @@ ORDER BY 7 DESC, 5 DESC
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("leaderboard rows: %w", err)
+	}
+	rows.Close()
+
+	trends, err := s.leaderboardTrends(ctx, where, args)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Trend = trends[items[i].ModelID+"|"+items[i].GymID]
+	}
+	return items, nil
+}
+
+func (s *Store) leaderboardTrends(ctx context.Context, where string, args []any) (map[string][]float64, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT executions.model_id::text, executions.gym_id::text,
+       COALESCE(COUNT(*) FILTER (WHERE iterations.status = 'passed')::float / NULLIF(COUNT(*), 0), 0)
+FROM execution.iterations
+JOIN execution.executions ON executions.id = iterations.execution_id
+`+where+`
+GROUP BY executions.model_id, executions.gym_id, date_trunc('day', iterations.created_at)
+ORDER BY executions.model_id, executions.gym_id, date_trunc('day', iterations.created_at)
+`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("leaderboard trends: %w", err)
+	}
+	defer rows.Close()
+	trends := make(map[string][]float64)
+	for rows.Next() {
+		var modelID, gymID string
+		var passRate float64
+		if err := rows.Scan(&modelID, &gymID, &passRate); err != nil {
+			return nil, fmt.Errorf("scan leaderboard trend: %w", err)
+		}
+		key := modelID + "|" + gymID
+		trends[key] = append(trends[key], passRate)
+	}
+	return trends, rows.Err()
 }
 
 // scan helpers and compact query helpers are intentionally local to keep the first Phase 2 store readable.
@@ -908,7 +1084,7 @@ func scanGymWithTaskCount(row scanner) (models.Gym, error) {
 func scanTask(row scanner) (models.Task, error) {
 	var task models.Task
 	var graderConfig, simulatorConfig, dbJSONValidator, importMetadata, exportMetadata []byte
-	if err := row.Scan(&task.ID, &task.GymID, &task.TaskID, &task.Prompt, &graderConfig, &simulatorConfig, &dbJSONValidator, &task.VerifierPath, &importMetadata, &exportMetadata, &task.CreatedAt, &task.UpdatedAt); err != nil {
+	if err := row.Scan(&task.ID, &task.GymID, &task.TaskID, &task.Prompt, &graderConfig, &simulatorConfig, &dbJSONValidator, &task.VerifierPath, &importMetadata, &exportMetadata, &task.CreatedAt, &task.UpdatedAt, &task.Difficulty, &task.Status, &task.MaxSteps, &task.StartURL); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.Task{}, ErrNotFound
 		}
@@ -925,7 +1101,7 @@ func scanTask(row scanner) (models.Task, error) {
 func scanModelProvider(row scanner) (models.ModelProvider, error) {
 	var item models.ModelProvider
 	var config []byte
-	if err := row.Scan(&item.ID, &item.Key, &item.Name, &item.DisplayName, &item.AdapterKey, &item.BaseURL, &item.SecretRef, &item.Enabled, &config, &item.CreatedAt, &item.UpdatedAt); err != nil {
+	if err := row.Scan(&item.ID, &item.Key, &item.Name, &item.DisplayName, &item.AdapterKey, &item.BaseURL, &item.SecretRef, &item.Enabled, &config, &item.CreatedAt, &item.UpdatedAt, &item.ConnectionStatus, &item.LastTestedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.ModelProvider{}, ErrNotFound
 		}
@@ -933,6 +1109,14 @@ func scanModelProvider(row scanner) (models.ModelProvider, error) {
 	}
 	item.Config = mapFromJSON(config)
 	return item, nil
+}
+
+func (s *Store) SetProviderConnectionStatus(ctx context.Context, id string, status string) error {
+	_, err := s.db.Exec(ctx, `UPDATE catalog.model_providers SET connection_status = $2, last_tested_at = now() WHERE id = $1`, id, status)
+	if err != nil {
+		return fmt.Errorf("set provider connection status: %w", err)
+	}
+	return nil
 }
 
 func scanModelDefinition(row scanner) (models.ModelDefinition, error) {
@@ -952,7 +1136,7 @@ func scanModelDefinition(row scanner) (models.ModelDefinition, error) {
 
 func scanBatch(row scanner) (models.Batch, error) {
 	var batch models.Batch
-	if err := row.Scan(&batch.ID, &batch.Name, &batch.GymID, &batch.CreatedBy, &batch.IterationCount, &batch.RerunEnabled, &batch.NotificationRead, &batch.CreatedAt, &batch.Status); err != nil {
+	if err := row.Scan(&batch.ID, &batch.Name, &batch.GymID, &batch.CreatedBy, &batch.IterationCount, &batch.RerunEnabled, &batch.NotificationRead, &batch.CreatedAt, &batch.Status, &batch.PassRate, &batch.Cost, &batch.Models); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.Batch{}, ErrNotFound
 		}
@@ -988,14 +1172,26 @@ func (s *Store) getBatch(ctx context.Context, batchID string) (models.Batch, err
 	row := s.db.QueryRow(ctx, `
 SELECT batches.id::text, batches.name, batches.gym_id::text, COALESCE(batches.created_by::text, ''),
        batches.iteration_count, batches.rerun_enabled, batches.notification_read, batches.created_at,
-       COALESCE(status_rollup.status, 'pending')
+       COALESCE(status_rollup.status, 'pending'), COALESCE(status_rollup.pass_rate, 0), COALESCE(cost_rollup.cost, 0), COALESCE(model_rollup.models, '')
 FROM execution.batches
 LEFT JOIN LATERAL (
-  SELECT execution.compute_batch_status(array_agg(iterations.status)) AS status
+  SELECT execution.compute_batch_status(array_agg(iterations.status)) AS status,
+         COALESCE(COUNT(*) FILTER (WHERE iterations.status = 'passed')::float / NULLIF(COUNT(*), 0), 0) AS pass_rate
   FROM execution.executions
   JOIN execution.iterations ON iterations.execution_id = executions.id
   WHERE executions.batch_id = batches.id
 ) status_rollup ON true
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost
+  FROM execution.token_usage
+  WHERE token_usage.batch_id = batches.id
+) cost_rollup ON true
+LEFT JOIN LATERAL (
+  SELECT string_agg(DISTINCT model_definitions.display_name, ', ') AS models
+  FROM execution.executions
+  JOIN catalog.model_definitions ON model_definitions.id = executions.model_id
+  WHERE executions.batch_id = batches.id
+) model_rollup ON true
 WHERE batches.id = $1
 `, batchID)
 	return scanBatch(row)
@@ -1043,9 +1239,15 @@ SELECT iterations.id::text, iterations.execution_id::text, iterations.iteration_
        COALESCE(iterations.started_at::text, ''), COALESCE(iterations.completed_at::text, ''),
        COALESCE(iterations.timeline_artifact_id::text, ''),
        iterations.result_data,
-       iterations.total_steps, iterations.created_at
+       iterations.total_steps, iterations.created_at,
+       COALESCE(tok.cost, 0)
 FROM execution.iterations
 JOIN execution.executions ON executions.id = iterations.execution_id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost
+  FROM execution.token_usage
+  WHERE token_usage.iteration_id = iterations.id
+) tok ON true
 WHERE executions.batch_id = $1
 ORDER BY executions.created_at, iterations.iteration_number
 `, batchID)
@@ -1077,6 +1279,7 @@ ORDER BY executions.created_at, iterations.iteration_number
 			&resultData,
 			&iteration.TotalSteps,
 			&iteration.CreatedAt,
+			&iteration.Cost,
 		); err != nil {
 			return nil, fmt.Errorf("scan iteration: %w", err)
 		}
@@ -1283,7 +1486,7 @@ WHERE executions.batch_id = $1
 	taskRows, err := s.db.Query(ctx, `
 SELECT DISTINCT tasks.id::text, tasks.gym_id::text, tasks.task_id, tasks.prompt, tasks.grader_config,
        tasks.simulator_config, tasks.db_json_validator, tasks.verifier_path, tasks.import_metadata,
-       tasks.export_metadata, tasks.created_at, tasks.updated_at
+       tasks.export_metadata, tasks.created_at, tasks.updated_at, tasks.difficulty, tasks.status, tasks.max_steps, tasks.start_url
 FROM execution.executions
 JOIN catalog.tasks ON tasks.id = executions.task_id
 WHERE executions.batch_id = $1
@@ -1347,4 +1550,73 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func (s *Store) GetBatchAnalytics(ctx context.Context, batchID string) (models.BatchAnalytics, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT iterations.id::text,
+       executions.snapshot_task_id,
+       iterations.status,
+       iterations.total_steps,
+       COALESCE(tok.tokens, 0)::bigint,
+       COALESCE(tok.cost, 0)::float8
+FROM execution.iterations
+JOIN execution.executions ON executions.id = iterations.execution_id
+LEFT JOIN LATERAL (
+  SELECT SUM(input_tokens + output_tokens) AS tokens, SUM(cost_usd) AS cost
+  FROM execution.token_usage
+  WHERE token_usage.iteration_id = iterations.id
+) tok ON true
+WHERE executions.batch_id = $1
+ORDER BY executions.snapshot_task_id, iterations.iteration_number
+`, batchID)
+	if err != nil {
+		return models.BatchAnalytics{}, fmt.Errorf("batch analytics: %w", err)
+	}
+	defer rows.Close()
+
+	analytics := models.BatchAnalytics{}
+	taskIndex := map[string]int{}
+	var stepsSum, stepsCount int
+	for rows.Next() {
+		var it models.IterationAnalytics
+		if err := rows.Scan(&it.ID, &it.TaskID, &it.Status, &it.Steps, &it.Tokens, &it.CostUSD); err != nil {
+			return models.BatchAnalytics{}, fmt.Errorf("scan batch analytics: %w", err)
+		}
+		analytics.Iterations = append(analytics.Iterations, it)
+		analytics.Total++
+		passed := it.Status == "passed"
+		if passed {
+			analytics.Passed++
+		}
+		if it.Steps > 0 {
+			stepsSum += it.Steps
+			stepsCount++
+		}
+		idx, ok := taskIndex[it.TaskID]
+		if !ok {
+			idx = len(analytics.ByTask)
+			taskIndex[it.TaskID] = idx
+			analytics.ByTask = append(analytics.ByTask, models.TaskOutcome{TaskID: it.TaskID})
+		}
+		analytics.ByTask[idx].Total++
+		if passed {
+			analytics.ByTask[idx].Passed++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return models.BatchAnalytics{}, fmt.Errorf("batch analytics rows: %w", err)
+	}
+	if analytics.Total > 0 {
+		analytics.PassRate = float64(analytics.Passed) / float64(analytics.Total)
+	}
+	if stepsCount > 0 {
+		analytics.AvgSteps = float64(stepsSum) / float64(stepsCount)
+	}
+	for i := range analytics.ByTask {
+		if analytics.ByTask[i].Total > 0 {
+			analytics.ByTask[i].PassRate = float64(analytics.ByTask[i].Passed) / float64(analytics.ByTask[i].Total)
+		}
+	}
+	return analytics, nil
 }

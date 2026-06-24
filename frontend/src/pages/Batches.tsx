@@ -102,11 +102,11 @@ export function Batches() {
       </section>
 
       <section data-id="batches-actions-section" className="harness-actions-section">
-        <p data-id="batches-actions-label" className="harness-actions-label">Filter</p>
-        <div className="harness-seg">
-          <button type="button" className={statusFilter === 'active' ? 'active' : ''} onClick={() => setStatusFilter('active')}>Active</button>
-          <button type="button" className={statusFilter === 'all' ? 'active' : ''} onClick={() => setStatusFilter('all')}>All</button>
-          <button type="button" className={statusFilter === 'completed' ? 'active' : ''} onClick={() => setStatusFilter('completed')}>Completed</button>
+        <p data-id="batches-actions-label" className="harness-actions-label">Actions:</p>
+        <div data-id="batches-status-filter" className="harness-seg">
+          <button data-id="batches-filter-active" type="button" className={statusFilter === 'active' ? 'active' : ''} onClick={() => setStatusFilter('active')}>Active</button>
+          <button data-id="batches-filter-all" type="button" className={statusFilter === 'all' ? 'active' : ''} onClick={() => setStatusFilter('all')}>All</button>
+          <button data-id="batches-filter-completed" type="button" className={statusFilter === 'completed' ? 'active' : ''} onClick={() => setStatusFilter('completed')}>Completed</button>
         </div>
         <div className="harness-actions-row">
           <input data-id="batches-search" className="harness-input min-w-64 flex-1" placeholder="Search batches" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -181,15 +181,25 @@ export function Batches() {
       <div data-id="batches-list" className="harness-tablewrap">
         <table>
           <thead>
-            <tr><th>Batch</th><th>Gym</th><th>Iterations</th><th>Status</th><th aria-label="actions" /></tr>
+            <tr><th>Batch</th><th>Gym</th><th>Model</th><th>Iterations</th><th>Pass rate</th><th>Status</th><th className="text-right">Cost</th><th aria-label="actions" /></tr>
           </thead>
           <tbody>
             {filtered.map((batch) => (
               <tr data-id={`batch-card-${batch.id}`} key={batch.id}>
                 <td><div className="font-semibold text-[var(--ink)]">{batch.name}</div></td>
                 <td data-id={`batch-gym-${batch.id}`} className="text-[var(--steel)]">{gymName(batch.gymId)}</td>
+                <td data-id={`batch-model-${batch.id}`} className="text-[var(--steel)]">{batch.models || '\u2014'}</td>
                 <td className="font-mono text-[var(--steel)]">{batch.iterationCount}</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-[var(--surface-soft)]">
+                      <div className="h-full rounded-full bg-[var(--brand-green)]" style={{ width: `${Math.round((batch.passRate ?? 0) * 100)}%` }} />
+                    </div>
+                    <span data-id={`batch-passrate-${batch.id}`} className="font-mono text-[var(--steel)]">{Math.round((batch.passRate ?? 0) * 100)}%</span>
+                  </div>
+                </td>
                 <td><StatusBadge id={`batch-status-${batch.id}`} status={batch.status} /></td>
+                <td data-id={`batch-cost-${batch.id}`} className="text-right font-mono text-[var(--steel)]">${(batch.cost ?? 0).toFixed(2)}</td>
                 <td>
                   <div className="flex justify-end">
                     <Button data-id={`batch-snapshot-link-${batch.id}`} variant="secondary" size="sm" asChild><Link to={`/batches/${batch.id}/runs`}>Open snapshot</Link></Button>

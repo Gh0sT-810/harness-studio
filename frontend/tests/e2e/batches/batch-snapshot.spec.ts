@@ -17,12 +17,16 @@ test.describe('Batch Snapshot', () => {
     await expect(batchPage.batchesHeaderSection).toContainText('Batches')
     await expect(batchPage.batchesActionsSection).toHaveClass(/harness-actions-section/)
     await expect(batchPage.batchesActionsLabel).toHaveText('Actions:')
+    await expect(page.locator('[data-id="batches-status-filter"]')).toBeVisible()
     await expect(batchPage.addBatchButton).toBeVisible()
     await expect(batchPage.batchesSearch).toBeVisible()
     await expect(batchPage.batchFormCard).not.toBeVisible()
     await batchPage.addBatchButton.click()
     await expect(batchPage.batchFormCard).toBeVisible()
     await expect(batchPage.batchCard(mockBatch.id)).toBeVisible()
+    await expect(page.locator('[data-id="batch-model-b1"]')).toContainText('Local Test Model')
+    await expect(page.locator('[data-id="batch-passrate-b1"]')).toContainText('50%')
+    await expect(page.locator('[data-id="batch-cost-b1"]')).toContainText('$1.23')
 
     await page.goto('/batches/b1/runs')
     await expect(batchPage.snapshotPage).toBeVisible()
@@ -32,17 +36,15 @@ test.describe('Batch Snapshot', () => {
     await expect(page.locator('[data-id="snapshot-reload-button"]')).toBeVisible()
     await expect(page.locator('[data-id="terminate-batch-button"]')).toBeEnabled()
     await expect(page.locator('[data-id="snapshot-count-total"]')).toBeVisible()
+    await expect(page.locator('[data-id="snapshot-progress-bar"]')).toBeVisible()
     await expect(page.locator('[data-id="failure-diagnostics-panel"]')).toBeVisible()
     await expect(page.locator('[data-id="batch-insights-tabs"]')).toBeVisible()
-    await expect(page.locator('[data-id="event-stream-panel"]')).toBeVisible()
-    await expect(page.locator('.harness-code-block-header')).toBeVisible()
-    await expect(batchPage.snapshotExecution('e1')).toBeVisible()
+    await expect(page.locator('[data-id="iterations-status-filter"]')).toBeVisible()
     await expect(batchPage.snapshotIteration('i1')).toBeVisible()
     await expect(page.locator('[data-id="snapshot-iteration-title-i1"]')).toContainText('TASK-1')
-    await expect(page.locator('[data-id="snapshot-iteration-title-i1"]')).toContainText('Iteration 1')
+    await expect(page.locator('[data-id="snapshot-iteration-title-i1"]')).toContainText('#1')
     await expect(page.locator('[data-id="snapshot-iteration-model-i1"]')).toContainText('Local Test Model')
     await expect(page.locator('[data-id="snapshot-iteration-prompt-i1"]')).toContainText('Do the thing')
-    await expect(page.locator('[data-id="snapshot-iteration-execution-i1"]')).toContainText('execution=e1')
     const cancelRequest = page.waitForResponse('**/api/batches/b1/cancel')
     await page.locator('[data-id="terminate-batch-button"]').click()
     await cancelRequest
@@ -54,7 +56,7 @@ test.describe('Batch Snapshot', () => {
     await expect(batchPage.batchesPage).toBeVisible()
   })
 
-  test('updates execution status from live SSE events', async ({ page }) => {
+  test('updates iteration status from live SSE events', async ({ page }) => {
     await page.addInitScript(() => {
       type EventListenerMap = Record<string, Array<(event: MessageEvent<string>) => void>>
 
@@ -108,26 +110,25 @@ test.describe('Batch Snapshot', () => {
 
     await page.goto('/batches/b1/runs')
     await expect(batchPage.snapshotPage).toBeVisible()
-    await expect(page.locator('[data-id="snapshot-execution-status-e1"]')).toHaveText('pending')
+    await expect(page.locator('[data-id="snapshot-iteration-status-i1"]')).toHaveText('executing')
 
     await page.evaluate(() => {
       ;(window as unknown as { __emitBatchEvent: (type: string, data: unknown, lastEventId: string) => void }).__emitBatchEvent(
-        'execution.updated',
+        'iteration.completed',
         {
           version: 'v1',
-          type: 'execution.updated',
+          type: 'iteration.completed',
           id: 'b1:event-1',
           batch_id: 'b1',
+          iteration_id: 'i1',
           occurred_at: '2026-01-01T00:00:00Z',
           sequence: '1-0',
-          payload: { execution_id: 'e1', status: 'passed' },
+          payload: { status: 'passed' },
         },
         '1-0',
       )
     })
 
-    await expect(page.locator('[data-id="snapshot-execution-status-e1"]')).toHaveText('passed')
-    await expect(page.locator('[data-id="recent-event-b1:event-1"]')).toContainText('execution.updated')
-    await expect(page.locator('[data-id="latest-event-id"]')).toHaveText('1-0')
+    await expect(page.locator('[data-id="snapshot-iteration-status-i1"]')).toHaveText('passed')
   })
 })

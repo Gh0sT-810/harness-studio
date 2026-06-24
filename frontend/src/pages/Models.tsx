@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { EmptyState } from '@/components/EmptyState'
+import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -169,7 +170,10 @@ export function Models({ embedded = false }: ModelsProps) {
   })
   const testProvider = useMutation({
     mutationFn: modelApi.testProvider,
-    onSuccess: (result) => setMessage(result.message),
+    onSuccess: (result) => {
+      setMessage(result.message)
+      refreshRegistry()
+    },
   })
   const testModel = useMutation({
     mutationFn: modelApi.test,
@@ -299,14 +303,16 @@ export function Models({ embedded = false }: ModelsProps) {
       <div data-id="providers-list" className="harness-tablewrap overflow-x-auto">
         <table>
           <thead>
-            <tr><th>Provider</th><th>Adapter</th><th>Status</th>{embedded ? <th aria-label="actions" /> : null}</tr>
+            <tr><th>Provider</th><th>Adapter</th><th>Secret ref</th><th>Models</th><th>Status</th>{embedded ? <th aria-label="actions" /> : null}</tr>
           </thead>
           <tbody>
             {providers.map((provider) => (
               <tr data-id={`provider-card-${provider.id}`} key={provider.id}>
                 <td className="font-semibold text-[var(--ink)]">{provider.displayName || provider.name}</td>
                 <td><span className="harness-code-inline">{provider.adapterKey}</span></td>
-                <td><Badge variant={provider.enabled ? 'tag' : 'secondary'}>{provider.enabled ? 'enabled' : 'disabled'}</Badge></td>
+                <td>{provider.secretRef ? <span className="harness-code-inline">{provider.secretRef}</span> : <span className="text-[var(--muted)]">&mdash;</span>}</td>
+                <td className="font-mono text-[var(--steel)]">{models.filter((model) => model.providerId === provider.id).length}</td>
+                <td>{provider.enabled ? <StatusBadge id={`provider-status-${provider.id}`} status={provider.connectionStatus || 'untested'} /> : <Badge data-id={`provider-status-${provider.id}`} variant="secondary">disabled</Badge>}</td>
                 {embedded ? (
                   <td>
                     <div className="flex justify-end gap-2">
@@ -325,14 +331,18 @@ export function Models({ embedded = false }: ModelsProps) {
       <div data-id="models-list" className="harness-tablewrap overflow-x-auto">
         <table>
           <thead>
-            <tr><th>Model</th><th>Model name</th><th>ID</th><th>Default</th>{embedded ? <th aria-label="actions" /> : null}</tr>
+            <tr><th>Model</th><th>Model name</th><th>Capabilities</th><th>Pricing</th><th>Default</th>{embedded ? <th aria-label="actions" /> : null}</tr>
           </thead>
           <tbody>
-            {models.map((model) => (
+            {models.map((model) => {
+              const capabilities = Object.entries(model.capabilities ?? {}).filter(([, value]) => Boolean(value)).map(([key]) => key)
+              const pricing = Object.entries(model.costConfig ?? {}).map(([key, value]) => `${key}: ${String(value)}`)
+              return (
               <tr data-id={`model-card-${model.id}`} key={model.id}>
                 <td className="font-semibold text-[var(--ink)]">{model.displayName}</td>
                 <td className="text-[var(--steel)]">{model.modelName}</td>
-                <td><span className="harness-code-inline">{model.id}</span></td>
+                <td>{capabilities.length ? <div className="flex flex-wrap gap-1">{capabilities.map((cap) => <span key={cap} className="harness-tag">{cap}</span>)}</div> : <span className="text-[var(--muted)]">&mdash;</span>}</td>
+                <td>{pricing.length ? <span className="harness-code-inline">{pricing.join(' · ')}</span> : <span className="text-[var(--muted)]">&mdash;</span>}</td>
                 <td>{model.isDefault ? <Badge data-id={`model-default-${model.id}`} variant="tag">default</Badge> : <span className="text-[var(--muted)]">&mdash;</span>}</td>
                 {embedded ? (
                   <td>
@@ -345,7 +355,7 @@ export function Models({ embedded = false }: ModelsProps) {
                   </td>
                 ) : null}
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>

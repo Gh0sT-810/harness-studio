@@ -16,6 +16,13 @@ type TokenUsageSummary struct {
 	Runs         int64            `json:"runs"`
 	ByModel      []UsageBreakdown `json:"byModel"`
 	ByGym        []UsageBreakdown `json:"byGym"`
+	Series       []UsageBucket    `json:"series"`
+}
+
+type UsageBucket struct {
+	Date         string  `json:"date"`
+	TotalTokens  int64   `json:"totalTokens"`
+	TotalCostUSD float64 `json:"totalCostUsd"`
 }
 
 type UsageBreakdown struct {

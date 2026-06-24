@@ -56,6 +56,15 @@ func (bc *BatchController) GetBatchSnapshot(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "batch snapshot retrieved", snapshot)
 }
 
+func (bc *BatchController) GetBatchAnalytics(c *gin.Context) {
+	analytics, err := bc.executionService.GetBatchAnalytics(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "batch analytics not found")
+		return
+	}
+	utils.SuccessResponse(c, http.StatusOK, "batch analytics retrieved", analytics)
+}
+
 func (bc *BatchController) CancelBatch(c *gin.Context) {
 	if err := bc.executionService.CancelBatch(c.Request.Context(), c.Param("id")); err != nil {
 		utils.ErrorResponse(c, http.StatusBadGateway, "cancel batch failed")

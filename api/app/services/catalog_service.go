@@ -25,6 +25,7 @@ type CatalogStore interface {
 	GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error)
 	CreateModelProvider(ctx context.Context, req models.ModelProviderRequest) (models.ModelProvider, error)
 	UpdateModelProvider(ctx context.Context, id string, req models.ModelProviderRequest) (models.ModelProvider, error)
+	SetProviderConnectionStatus(ctx context.Context, id string, status string) error
 	CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
 	UpdateModelDefinition(ctx context.Context, id string, req models.ModelDefinitionRequest) (models.ModelDefinition, error)
 	SetDefaultModel(ctx context.Context, id string) (models.ModelDefinition, error)
@@ -137,7 +138,15 @@ func (s *CatalogService) TestModelProvider(ctx context.Context, id string) (mode
 	if err != nil {
 		return models.ModelTestResult{}, err
 	}
-	return validateModelProvider(provider), nil
+	result := validateModelProvider(provider)
+	status := "connected"
+	if result.Status != "ok" {
+		status = "failed"
+	}
+	if err := s.store.SetProviderConnectionStatus(ctx, id, status); err != nil {
+		return models.ModelTestResult{}, err
+	}
+	return result, nil
 }
 
 func (s *CatalogService) CreateModelDefinition(ctx context.Context, req models.ModelDefinitionRequest) (models.ModelDefinition, error) {

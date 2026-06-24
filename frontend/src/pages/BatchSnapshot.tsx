@@ -6,19 +6,33 @@ import { Link, useParams } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 import { LiveMonitor } from '@/components/live-monitor/LiveMonitor'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { batchApi } from '@/lib/api'
 import { BatchEventEnvelope, useBatchEvents } from '@/lib/batch-events'
 import { applyBatchEvent, createLiveBatchState, LiveBatchState } from '@/lib/live-batch-store'
 
 const CANCELABLE_ITERATION_STATUSES = new Set(['pending', 'retrying', 'executing'])
+const RUNNING_STATUSES = new Set(['executing', 'running', 'retrying'])
+const FAILED_STATUSES = new Set(['failed', 'crashed', 'timeout', 'terminated', 'cancelled'])
+const QUEUED_STATUSES = new Set(['pending', 'queued'])
+
+type IterationFilter = 'all' | 'passed' | 'failed' | 'running'
+
+const PILL_VARIANT: Record<string, 'success' | 'destructive' | 'warning' | 'active' | 'secondary'> = {
+  passed: 'success',
+  failed: 'destructive',
+  crashed: 'destructive',
+  executing: 'active',
+  pending: 'warning',
+}
 
 export function BatchSnapshotPage() {
   const { id } = useParams()
   const queryClient = useQueryClient()
   const [liveState, setLiveState] = useState<LiveBatchState | null>(null)
   const [monitorIterationId, setMonitorIterationId] = useState('')
+  const [filter, setFilter] = useState<IterationFilter>('all')
   const snapshotQuery = useQuery({
     queryKey: ['batch-snapshot', id],
     queryFn: () => batchApi.snapshot(id ?? ''),
@@ -50,7 +64,7 @@ export function BatchSnapshotPage() {
     void refetchSnapshot()
   }, [refetchSnapshot])
 
-  const { connectionState, latestEventId } = useBatchEvents(id, handleEvent, handleFallback)
+  const { connectionState } = useBatchEvents(id, handleEvent, handleFallback)
   const snapshot = liveState ?? (snapshotData ? createLiveBatchState(snapshotData) : null)
   const connectionStatus = connectionState === 'live' ? 'connected' : connectionState
   const monitorIteration = snapshot?.iterations.find((iteration) => iteration.id === monitorIterationId)
@@ -65,22 +79,46 @@ export function BatchSnapshotPage() {
       ) ?? false,
     [snapshot],
   )
-  const progress = useMemo(() => {
-    if (!snapshot?.counts.total) return 0
-    const terminal = (snapshot.counts.passed ?? 0) + (snapshot.counts.failed ?? 0) + (snapshot.counts.crashed ?? 0) + (snapshot.counts.timeout ?? 0) + (snapshot.counts.terminated ?? 0) + (snapshot.counts.cancelled ?? 0)
-    return Math.round((terminal / snapshot.counts.total) * 100)
-  }, [snapshot])
-  const failedIterationErrors = useMemo(
+  const counts = snapshot?.counts ?? {}
+  const total = counts.total ?? 0
+  const passed = counts.passed ?? 0
+  const failed = counts.failed ?? 0
+  const crashed = counts.crashed ?? 0
+  const running = (counts.executing ?? 0) + (counts.retrying ?? 0) + (counts.running ?? 0)
+  const pending = counts.pending ?? 0
+  const terminal = passed + failed + crashed + (counts.timeout ?? 0) + (counts.terminated ?? 0) + (counts.cancelled ?? 0)
+  const progress = total > 0 ? Math.round((terminal / total) * 100) : 0
+
+  const filteredIterations = useMemo(() => {
+    const iterations = snapshot?.iterations ?? []
+    if (filter === 'all') return iterations
+    return iterations.filter((iteration) => {
+      if (filter === 'passed') return iteration.status === 'passed'
+      if (filter === 'failed') return FAILED_STATUSES.has(iteration.status)
+      return RUNNING_STATUSES.has(iteration.status)
+    })
+  }, [filter, snapshot])
+
+  const failureLog = useMemo(
     () =>
-      snapshot?.iterations
-        .filter((iteration) => iteration.status === 'failed' && iteration.resultData?.error)
-        .map((iteration) => ({ id: iteration.id, error: iteration.resultData?.error ?? '' })) ?? [],
-    [snapshot],
+      (snapshot?.iterations ?? [])
+        .filter((iteration) => FAILED_STATUSES.has(iteration.status))
+        .map((iteration) => {
+          const execution = executionsById.get(iteration.executionId)
+          const label = execution?.snapshotTaskId || 'task'
+          const reason = iteration.resultData?.error || iteration.status
+          return { id: iteration.id, number: iteration.iterationNumber, text: `${label} · ${reason}` }
+        }),
+    [snapshot, executionsById],
   )
 
   if (!snapshot) {
     return <EmptyState id="snapshot-loading" message="Loading batch snapshot..." />
   }
+
+  const primaryModel = snapshot.batch.models || 'model'
+  const created = snapshot.batch.createdAt ? new Date(snapshot.batch.createdAt).toLocaleString() : ''
+  const metaParts = [snapshot.batch.id, primaryModel, created ? `created ${created}` : '', 'snapshot + SSE live state'].filter(Boolean)
 
   return (
     <div data-id="batch-snapshot-page" className="harness-page">
@@ -91,152 +129,143 @@ export function BatchSnapshotPage() {
               <ArrowLeft size={18} />
             </Link>
           </Button>
-          <div>
-            <p className="harness-kicker">BatchRuns</p>
+          <div className="min-w-0">
+            <p className="harness-kicker">Batch runs</p>
             <h2 className="harness-title">{snapshot.batch.name}</h2>
-            <p className="harness-subtitle">Snapshot plus SSE live state. No per-row or per-card polling loops.</p>
+            <p className="harness-subtitle truncate font-mono text-xs">{metaParts.join(' · ')}</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <StatusBadge id="event-connection-state" status={connectionStatus} />
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <StatusBadge id="batch-snapshot-status" status={snapshot.batch.status} />
-          <Button data-id="snapshot-reload-button" variant="secondary" onClick={() => refetchSnapshot()}>Reload snapshot</Button>
-          <Button data-id="terminate-batch-button" variant="secondary" onClick={() => terminateBatch.mutate()} disabled={!hasCancelableIterations || terminateBatch.isPending}>
+          <span data-id="event-connection-state" className="harness-tag">{connectionStatus === 'connected' ? 'SSE live' : connectionStatus}</span>
+          <Button data-id="snapshot-reload-button" variant="secondary" size="sm" onClick={() => refetchSnapshot()}>Reload</Button>
+          <Button data-id="generate-batch-report" size="sm" onClick={() => createReport.mutate()} disabled={createReport.isPending}>
+            {createReport.isPending ? 'Generating...' : 'Generate report'}
+          </Button>
+          <Button data-id="terminate-batch-button" variant="secondary" size="sm" className="text-[var(--brand-error)]" onClick={() => terminateBatch.mutate()} disabled={!hasCancelableIterations || terminateBatch.isPending}>
             {terminateBatch.isPending ? 'Terminating...' : 'Terminate batch'}
           </Button>
         </div>
       </section>
 
-      <section data-id="batch-overall-summary" className="grid gap-3 md:grid-cols-4">
-        <SummaryCard id="snapshot-count-total" title={String(snapshot.counts.total ?? 0)} description="total iterations" />
-        <SummaryCard id="snapshot-count-pending" title={String(snapshot.counts.pending ?? 0)} description="pending" />
-        <SummaryCard id="snapshot-count-passed" title={String(snapshot.counts.passed ?? 0)} description="passed" />
+      <section data-id="batch-overall-summary" className="grid gap-3 md:grid-cols-5">
+        <SummaryCard id="snapshot-count-total" title={String(total)} description="total iterations" />
+        <SummaryCard id="snapshot-count-passed" title={String(passed)} description="passed" color="var(--brand-green)" />
+        <SummaryCard id="snapshot-count-failed" title={String(failed)} description="failed" color="var(--brand-error)" />
+        <SummaryCard id="snapshot-count-running" title={String(running)} description="running" />
         <SummaryCard id="snapshot-progress" title={`${progress}%`} description="terminal progress" />
       </section>
 
       <div data-id="snapshot-progress-bar" className="harness-card-base harness-card-padding">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="harness-body-sm-medium">Terminal progress</span>
+          <span className="harness-body-sm-medium">{terminal} / {total} iterations terminal</span>
           <span className="harness-micro">{progress}%</span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-soft)]">
           <div className="h-full rounded-full bg-[var(--brand-green)] transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <div className="mt-3 flex flex-wrap gap-4 text-xs text-[var(--steel)]">
-          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-green)' }}>{snapshot.counts.passed ?? 0}</span> passed</span>
-          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-error)' }}>{snapshot.counts.failed ?? 0}</span> failed</span>
-          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-error)' }}>{snapshot.counts.crashed ?? 0}</span> crashed</span>
-          <span><span className="font-mono font-semibold" style={{ color: 'var(--brand-warn)' }}>{snapshot.counts.pending ?? 0}</span> pending</span>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <CountPill status="passed" label="Passed" count={passed} />
+          <CountPill status="failed" label="Failed" count={failed} />
+          <CountPill status="crashed" label="Crashed" count={crashed} />
+          <CountPill status="executing" label="Running" count={running} />
+          <CountPill status="pending" label="Pending" count={pending} />
         </div>
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-        <div className="grid gap-4">
-          <Card data-id="failure-diagnostics-panel" className="harness-card-padding">
-            <CardHeader>
-              <CardTitle>Failure diagnostics</CardTitle>
-              <CardDescription>Phase 3 placeholder fed by snapshot and event counts.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p className="harness-code-inline w-fit">failed={snapshot.counts.failed ?? 0} crashed={snapshot.counts.crashed ?? 0} timeout={snapshot.counts.timeout ?? 0}</p>
-              {failedIterationErrors.length === 0 ? null : (
-                <div data-id="iteration-error-list" className="grid gap-2">
-                  {failedIterationErrors.map((item) => (
-                    <p key={item.id} className="whitespace-pre-wrap text-sm text-[var(--danger)]">{item.error}</p>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card data-id="batch-insights-tabs" className="harness-card-padding">
-            <CardHeader>
-              <CardTitle>Insights</CardTitle>
-              <CardDescription>Report readiness, preview, and generated artifact access.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p data-id="report-readiness" className="harness-code-inline w-fit">report={String(snapshot.report?.status ?? 'not_configured')}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button data-id="generate-batch-report" onClick={() => createReport.mutate()} disabled={createReport.isPending}>
-                  {createReport.isPending ? 'Generating report...' : 'Generate report'}
-                </Button>
-                {snapshot.report?.reportJobId ? (
-                  <Button data-id="preview-batch-report" variant="secondary" asChild>
-                    <Link to={`/reports/${snapshot.batch.id}`}>Preview report</Link>
-                  </Button>
+        <div data-id="snapshot-iterations" className="harness-tablewrap overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--hairline)] px-4 py-3">
+            <span className="font-semibold text-[var(--ink)]">Iterations</span>
+            <div data-id="iterations-status-filter" className="harness-seg">
+              {(['all', 'passed', 'failed', 'running'] as IterationFilter[]).map((key) => (
+                <button key={key} data-id={`iterations-filter-${key}`} type="button" className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>
+                  {key === 'all' ? 'All' : key.charAt(0).toUpperCase() + key.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table>
+              <thead>
+                <tr><th>Task · iteration</th><th>Model</th><th>Status</th><th className="text-right">Steps</th><th className="text-right">Cost</th><th aria-label="actions" /></tr>
+              </thead>
+              <tbody>
+                {filteredIterations.map((iteration) => {
+                  const execution = executionsById.get(iteration.executionId)
+                  const model = execution?.modelId ? snapshot.catalog?.models?.[execution.modelId] : undefined
+                  const taskLabel = execution?.snapshotTaskId || (execution?.taskId ? snapshot.catalog?.tasks?.[execution.taskId]?.taskId : '') || 'Task'
+                  const modelLabel = model?.displayName || model?.modelName || primaryModel
+                  const queued = QUEUED_STATUSES.has(iteration.status)
+                  return (
+                    <tr data-id={`snapshot-iteration-${iteration.id}`} key={iteration.id}>
+                      <td>
+                        <div data-id={`snapshot-iteration-title-${iteration.id}`} className="font-semibold text-[var(--ink)]">{taskLabel} · #{iteration.iterationNumber}</div>
+                        <div data-id={`snapshot-iteration-prompt-${iteration.id}`} className="max-w-md truncate font-mono text-xs text-[var(--steel)]">{execution?.snapshotPrompt ?? ''}</div>
+                      </td>
+                      <td data-id={`snapshot-iteration-model-${iteration.id}`} className="whitespace-nowrap text-[var(--steel)]">{modelLabel}</td>
+                      <td><StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} /></td>
+                      <td className="text-right font-mono text-[var(--steel)]">{iteration.totalSteps ? iteration.totalSteps : '—'}</td>
+                      <td className="text-right font-mono text-[var(--steel)]">{queued ? '—' : `$${(iteration.cost ?? 0).toFixed(2)}`}</td>
+                      <td className="text-right">
+                        {queued ? (
+                          <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary opacity-45" disabled>Queued</button>
+                        ) : (
+                          <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary" onClick={() => setMonitorIterationId(iteration.id)}>
+                            {RUNNING_STATUSES.has(iteration.status) ? 'Live Monitor' : 'View'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filteredIterations.length === 0 ? (
+                  <tr><td colSpan={6} className="harness-subtitle">No iterations match this filter.</td></tr>
                 ) : null}
-                {snapshot.report?.artifactId ? (
-                  <Button data-id="download-batch-report" variant="secondary" asChild>
-                    <a href={`/api/artifacts/${snapshot.report.artifactId}`} target="_blank" rel="noreferrer">Download report</a>
-                  </Button>
-                ) : null}
-              </div>
-              {snapshot.report?.error ? <p className="text-sm text-[var(--danger)]">{snapshot.report.error}</p> : null}
-            </CardContent>
-          </Card>
-
-          <section data-id="snapshot-executions" className="grid gap-3">
-            {snapshot.executions.map((execution) => (
-              <Card data-id={`snapshot-execution-${execution.id}`} className="harness-card-padding" key={execution.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <CardTitle>{execution.snapshotPrompt}</CardTitle>
-                    <StatusBadge id={`snapshot-execution-status-${execution.id}`} status={execution.status} />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="harness-code-inline w-fit">{execution.id}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </section>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <aside className="grid gap-4">
-          <Card data-id="event-stream-panel" className="overflow-hidden">
-            <CardHeader>
-              <CardTitle>Live events</CardTitle>
-              <CardDescription>latest id: <span data-id="latest-event-id">{latestEventId || 'none'}</span></CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              <div className="harness-code-block-header">
-                <span>Redis stream</span>
-                <button className="harness-copy-code-button" type="button">Live</button>
-              </div>
-              {snapshot.recentEvents.length === 0 ? <p data-id="recent-events-empty" className="harness-subtitle">No events received yet.</p> : null}
-              {snapshot.recentEvents.map((event) => (
-                <div data-id={`recent-event-${event.id}`} className="harness-code-block" key={event.id}>
-                  <p>{event.type}</p>
-                  <p className="text-[var(--on-dark-muted)]">{event.sequence}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div data-id="batch-insights-tabs" className="harness-card-base harness-card-padding">
+            <p className="mb-3 font-semibold text-[var(--ink)]">Report</p>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-[var(--steel)]">Readiness</span>
+              <span data-id="report-readiness" className="harness-code-inline">{String(snapshot.report?.status ?? 'not_configured')}</span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button data-id="generate-batch-report-side" size="sm" onClick={() => createReport.mutate()} disabled={createReport.isPending}>
+                {createReport.isPending ? 'Generating...' : 'Generate report'}
+              </Button>
+              <Button data-id="preview-batch-report" variant="secondary" size="sm" asChild>
+                <Link to={`/reports/${snapshot.batch.id}`}>Preview report</Link>
+              </Button>
+              {snapshot.report?.artifactId ? (
+                <Button data-id="download-batch-report" variant="secondary" size="sm" asChild>
+                  <a href={`/api/artifacts/${snapshot.report.artifactId}`} target="_blank" rel="noreferrer">Download</a>
+                </Button>
+              ) : null}
+            </div>
+            {snapshot.report?.error ? <p className="mt-2 text-sm text-[var(--brand-error)]">{snapshot.report.error}</p> : null}
+          </div>
 
-          <section data-id="snapshot-iterations" className="grid gap-2">
-            {snapshot.iterations.map((iteration) => {
-              const execution = executionsById.get(iteration.executionId)
-              const model = execution?.modelId ? snapshot.catalog?.models?.[execution.modelId] : undefined
-              const taskLabel = execution?.snapshotTaskId || (execution?.taskId ? snapshot.catalog?.tasks?.[execution.taskId]?.taskId : '') || 'Task'
-              const modelLabel = model?.displayName || model?.modelName || 'Model'
-              return (
-                <div data-id={`snapshot-iteration-${iteration.id}`} className="harness-card-base grid gap-3 p-4" key={iteration.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p data-id={`snapshot-iteration-title-${iteration.id}`} className="font-semibold">{taskLabel} · Iteration {iteration.iterationNumber}</p>
-                      <p data-id={`snapshot-iteration-model-${iteration.id}`} className="harness-subtitle">{modelLabel}</p>
-                    </div>
-                    <StatusBadge id={`snapshot-iteration-status-${iteration.id}`} status={iteration.status} />
+          <div data-id="failure-diagnostics-panel" className="harness-card-base harness-card-padding">
+            <p className="mb-3 font-semibold text-[var(--ink)]">Failure diagnostics</p>
+            <p className="harness-code-inline w-fit">failed={failed} · crashed={crashed} · timeout={counts.timeout ?? 0}</p>
+            {failureLog.length === 0 ? (
+              <p className="mt-3 harness-subtitle">No failures recorded.</p>
+            ) : (
+              <div data-id="iteration-error-list" className="mt-3 grid gap-1.5">
+                {failureLog.map((item) => (
+                  <div key={item.id} className="harness-log-line flex gap-2 text-xs">
+                    <span className="shrink-0 font-mono text-[var(--steel)]">#{item.number}</span>
+                    <span className="truncate text-[var(--ink)]">{item.text}</span>
                   </div>
-                  <p data-id={`snapshot-iteration-prompt-${iteration.id}`} className="line-clamp-2 text-sm text-[var(--steel)]">{execution?.snapshotPrompt ?? 'No prompt snapshot available.'}</p>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p data-id={`snapshot-iteration-execution-${iteration.id}`} className="harness-code-inline">execution={iteration.executionId}</p>
-                    <button data-id={`open-live-monitor-${iteration.id}`} className="harness-button-secondary" type="button" onClick={() => setMonitorIterationId(iteration.id)}>Open Live Monitor</button>
-                  </div>
-                </div>
-              )
-            })}
-          </section>
+                ))}
+              </div>
+            )}
+          </div>
         </aside>
       </section>
       {monitorIteration ? <LiveMonitor iteration={monitorIteration} onClose={() => setMonitorIterationId('')} /> : null}
@@ -244,11 +273,15 @@ export function BatchSnapshotPage() {
   )
 }
 
-function SummaryCard({ id, title, description }: { id: string; title: string; description: string }) {
+function SummaryCard({ id, title, description, color }: { id: string; title: string; description: string; color?: string }) {
   return (
     <div data-id={id} className="harness-metric">
       <p className="harness-metric-label">{description}</p>
-      <p className="harness-metric-value">{title}</p>
+      <p className="harness-metric-value" style={color ? { color } : undefined}>{title}</p>
     </div>
   )
+}
+
+function CountPill({ status, label, count }: { status: string; label: string; count: number }) {
+  return <Badge variant={PILL_VARIANT[status] ?? 'secondary'}>{label} {count}</Badge>
 }

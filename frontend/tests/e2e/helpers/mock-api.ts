@@ -1,8 +1,8 @@
 import { Page } from '@playwright/test'
 
-import { mockBatch, mockDomain, mockGym, mockModel, mockProvider, mockTask, seededAdmin } from '../fixtures/test-data'
+import { mockBatch, mockBatchAnalytics, mockDomain, mockGym, mockLeaderboardRow, mockModel, mockProvider, mockReportJob, mockTask, mockUsageSummary, seededAdmin } from '../fixtures/test-data'
 
-export { mockBatch, mockDomain, mockGym, mockModel, mockProvider, mockTask, seededAdmin }
+export { mockBatch, mockBatchAnalytics, mockDomain, mockGym, mockLeaderboardRow, mockModel, mockProvider, mockReportJob, mockTask, mockUsageSummary, seededAdmin }
 
 function envelope<T>(data: T, message = 'ok') {
   return {
@@ -79,6 +79,21 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
   await page.route('**/api/batches', async (route) => {
     await route.fulfill({ json: envelope([mockBatch], 'batches') })
   })
+  await page.route('**/api/usage/summary**', async (route) => {
+    await route.fulfill({ json: envelope(mockUsageSummary, 'usage summary') })
+  })
+  await page.route('**/api/leaderboard', async (route) => {
+    await route.fulfill({ json: envelope([mockLeaderboardRow], 'leaderboard') })
+  })
+  await page.route('**/api/batches/b1/analytics', async (route) => {
+    await route.fulfill({ json: envelope(mockBatchAnalytics, 'batch analytics') })
+  })
+  await page.route('**/api/batches/b1/report', async (route) => {
+    await route.fulfill({ json: envelope(mockReportJob, 'report') })
+  })
+  await page.route('**/api/model-providers/p1/test', async (route) => {
+    await route.fulfill({ json: envelope({ status: 'ok', message: 'provider config valid' }, 'tested') })
+  })
   await page.route('**/api/users', async (route) => {
     await route.fulfill({ json: envelope([seededAdmin], 'users') })
   })
@@ -91,7 +106,7 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
         {
           batch: { ...mockBatch, status: batchCancelled ? 'cancelled' : mockBatch.status },
           executions: [{ id: 'e1', status: batchCancelled ? 'cancelled' : 'pending', taskId: mockTask.id, modelId: mockModel.id, snapshotTaskId: mockTask.taskId, snapshotPrompt: mockTask.prompt }],
-          iterations: [{ id: 'i1', executionId: 'e1', status: batchCancelled ? 'cancelled' : iterationStatus, iterationNumber: 1, timelineArtifactId: 'timeline-1' }],
+          iterations: [{ id: 'i1', executionId: 'e1', status: batchCancelled ? 'cancelled' : iterationStatus, iterationNumber: 1, timelineArtifactId: 'timeline-1', totalSteps: 14, cost: 0.03 }],
           counts: batchCancelled ? { total: 1, cancelled: 1 } : { total: 1, [iterationStatus]: 1 },
           report: { status: 'not_configured' },
           catalog: {

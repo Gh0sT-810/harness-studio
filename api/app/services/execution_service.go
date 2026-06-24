@@ -12,6 +12,7 @@ type ExecutionStore interface {
 	CreateBatch(ctx context.Context, req models.BatchCreateRequest, createdBy string) (models.Batch, error)
 	ListBatches(ctx context.Context) ([]models.Batch, error)
 	GetBatchSnapshot(ctx context.Context, batchID string) (models.BatchSnapshot, error)
+	GetBatchAnalytics(ctx context.Context, batchID string) (models.BatchAnalytics, error)
 	ListCancelableIterationIDs(ctx context.Context, batchID string) ([]string, error)
 	DefaultModelID(ctx context.Context) (string, error)
 	GetModelDefinition(ctx context.Context, id string) (models.ModelDefinition, error)
@@ -22,6 +23,7 @@ type ExecutionServiceInterface interface {
 	CreateBatch(ctx context.Context, req models.BatchCreateRequest, createdBy string) (models.Batch, error)
 	ListBatches(ctx context.Context) ([]models.Batch, error)
 	GetBatchSnapshot(ctx context.Context, batchID string) (models.BatchSnapshot, error)
+	GetBatchAnalytics(ctx context.Context, batchID string) (models.BatchAnalytics, error)
 	CancelBatch(ctx context.Context, batchID string) error
 }
 
@@ -107,6 +109,10 @@ func (s *ExecutionService) ListBatches(ctx context.Context) ([]models.Batch, err
 
 func (s *ExecutionService) GetBatchSnapshot(ctx context.Context, batchID string) (models.BatchSnapshot, error) {
 	return s.store.GetBatchSnapshot(ctx, batchID)
+}
+
+func (s *ExecutionService) GetBatchAnalytics(ctx context.Context, batchID string) (models.BatchAnalytics, error) {
+	return s.store.GetBatchAnalytics(ctx, batchID)
 }
 
 func (s *ExecutionService) CancelBatch(ctx context.Context, batchID string) error {

@@ -10,8 +10,8 @@ test.describe('Login Flow', () => {
     await page.goto('/gyms')
 
     await expect(authPage.loginPage).toBeVisible()
-    await expect(authPage.loginPage).toHaveClass(/harness-hero-band-sky/)
-    await expect(authPage.loginCard).toHaveClass(/harness-card-padding/)
+    await expect(authPage.loginPage).toHaveClass(/harness-login-wrap/)
+    await expect(authPage.loginCard).toHaveClass(/harness-card-base/)
     await expect(authPage.loginForm).toBeVisible()
   })
 

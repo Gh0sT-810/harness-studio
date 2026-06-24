@@ -26,6 +26,7 @@ test.describe('Catalog Screens', () => {
     await catalog.addGymButton.click()
     await expect(catalog.gymFormCard).toBeVisible()
     await expect(catalog.gymCard(mockGym.id)).toBeVisible()
+    await expect(page.locator('[data-id="gym-stats-g1"]')).toContainText('74% pass')
 
     await catalog.gymTasksLink(mockGym.id).click()
     await expect(catalog.tasksPage).toBeVisible()
@@ -39,6 +40,8 @@ test.describe('Catalog Screens', () => {
     await catalog.addTaskButton.click()
     await expect(catalog.taskFormCard).toBeVisible()
     await expect(catalog.taskCard(mockTask.id)).toBeVisible()
+    await expect(page.locator('[data-id="task-passrate-t1"]')).toContainText('63%')
+    await expect(page.locator('[data-id="task-avgsteps-t1"]')).toContainText('14.2')
     await catalog.taskEditButton(mockTask.id).click()
     await expect(page).toHaveURL(`/gyms/${mockGym.id}/tasks/${mockTask.id}/edit`)
     await expect(catalog.taskEditPage).toBeVisible()
@@ -54,5 +57,6 @@ test.describe('Catalog Screens', () => {
     await expect(admin.modelCard(mockModel.id)).toBeVisible()
     await expect(admin.modelDefaultBadge(mockModel.id)).toBeVisible()
     await expect(admin.modelDefaultBadge(mockModel.id)).toHaveClass(/harness-badge-tag/)
+    await expect(page.locator('[data-id="provider-status-p1"]')).toContainText('connected')
   })
 })

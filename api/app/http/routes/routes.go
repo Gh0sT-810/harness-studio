@@ -47,6 +47,7 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	authed.POST("/batches", batchController.CreateBatch)
 	authed.POST("/batches/:id/cancel", batchController.CancelBatch)
 	authed.GET("/batches/:id/snapshot", batchController.GetBatchSnapshot)
+	authed.GET("/batches/:id/analytics", batchController.GetBatchAnalytics)
 	authed.GET("/batches/:id/events", batchController.StreamBatchEvents)
 	authed.POST("/reports", reportController.CreateReport)
 	authed.GET("/reports/:id", reportController.GetReport)

@@ -7,7 +7,7 @@ export function StatusBadge({ status, id }: { status: string; id: string }) {
       ? 'success'
       : normalized === 'failed' || normalized === 'crashed' || normalized === 'timeout'
         ? 'destructive'
-        : normalized === 'pending' || normalized === 'queued' || normalized === 'reconnecting' || normalized === 'fallback'
+        : normalized === 'pending' || normalized === 'queued' || normalized === 'reconnecting' || normalized === 'fallback' || normalized === 'untested'
           ? 'warning'
           : normalized === 'executing' || normalized === 'running' || normalized === 'in_progress' || normalized === 'retrying'
             ? 'active'

@@ -30,6 +30,9 @@ export type Gym = {
   similarityEnabled?: boolean
   similarityThreshold?: number
   taskCount?: number
+  passRate?: number
+  runs?: number
+  updatedAt?: string
 }
 
 export type Task = {
@@ -41,6 +44,13 @@ export type Task = {
   simulatorConfig?: Record<string, unknown>
   dbJsonValidator?: Record<string, unknown>
   verifierPath?: string
+  difficulty?: string
+  status?: string
+  maxSteps?: number
+  startUrl?: string
+  runs?: number
+  passRate?: number
+  avgSteps?: number
 }
 
 export type ModelDefinition = {
@@ -67,6 +77,8 @@ export type ModelProvider = {
   secretRef?: string
   enabled: boolean
   config?: Record<string, unknown>
+  connectionStatus?: string
+  lastTestedAt?: string
 }
 
 export type ModelTestResult = {
@@ -86,6 +98,10 @@ export type Batch = {
   gymId: string
   status: string
   iterationCount: number
+  passRate?: number
+  cost?: number
+  models?: string
+  createdAt?: string
 }
 
 export type Domain = {
@@ -120,6 +136,8 @@ export type BatchSnapshot = {
     completedAt?: string
     timelineArtifactId?: string
     resultData?: { error?: string; runner?: string }
+    totalSteps?: number
+    cost?: number
     artifacts?: ArtifactSummary[]
   }>
   counts: Record<string, number>
@@ -162,6 +180,7 @@ export type TokenUsageSummary = {
   runs: number
   byModel: Array<{ id: string; name: string; totalTokens: number; totalCostUsd: number; runs: number }>
   byGym: Array<{ id: string; name: string; totalTokens: number; totalCostUsd: number; runs: number }>
+  series?: Array<{ date: string; totalTokens: number; totalCostUsd: number }>
 }
 
 export type LeaderboardRow = {
@@ -177,6 +196,7 @@ export type LeaderboardRow = {
   averageSeconds: number
   totalTokens: number
   totalCostUsd: number
+  trend?: number[]
 }
 
 export type ArtifactSummary = {
@@ -281,7 +301,7 @@ export const gymApi = {
 
 export const taskApi = {
   list: () => request<Task[]>('/api/tasks'),
-  create: (payload: { gymId: string; taskId: string; prompt: string; graderConfig?: Record<string, unknown>; simulatorConfig?: Record<string, unknown>; dbJsonValidator?: Record<string, unknown>; verifierPath?: string }) =>
+  create: (payload: { gymId: string; taskId: string; prompt: string; graderConfig?: Record<string, unknown>; simulatorConfig?: Record<string, unknown>; dbJsonValidator?: Record<string, unknown>; verifierPath?: string; difficulty?: string; status?: string; maxSteps?: number; startUrl?: string }) =>
     request<Task>(
       '/api/tasks',
       {
@@ -289,7 +309,7 @@ export const taskApi = {
         body: JSON.stringify(payload),
       },
     ),
-  update: (id: string, payload: { gymId: string; taskId: string; prompt: string; graderConfig?: Record<string, unknown>; simulatorConfig?: Record<string, unknown>; dbJsonValidator?: Record<string, unknown>; verifierPath?: string }) =>
+  update: (id: string, payload: { gymId: string; taskId: string; prompt: string; graderConfig?: Record<string, unknown>; simulatorConfig?: Record<string, unknown>; dbJsonValidator?: Record<string, unknown>; verifierPath?: string; difficulty?: string; status?: string; maxSteps?: number; startUrl?: string }) =>
     request<Task>(`/api/tasks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
@@ -338,6 +358,15 @@ export const modelApi = {
     }),
 }
 
+export type BatchAnalytics = {
+  total: number
+  passed: number
+  passRate: number
+  avgSteps: number
+  byTask: Array<{ taskId: string; total: number; passed: number; passRate: number }>
+  iterations: Array<{ id: string; taskId: string; status: string; steps: number; tokens: number; costUsd: number }>
+}
+
 export const batchApi = {
   list: () => request<Batch[]>('/api/batches'),
   create: (gymId: string, taskIds: string[], modelIds: string[], iterationCount: number, name = 'Phase 2 Batch') =>
@@ -349,6 +378,7 @@ export const batchApi = {
       },
     ),
   snapshot: (batchId: string) => request<BatchSnapshot>(`/api/batches/${batchId}/snapshot`),
+  analytics: (batchId: string) => request<BatchAnalytics>(`/api/batches/${batchId}/analytics`),
   cancel: (batchId: string) => request<{ id: string }>(`/api/batches/${batchId}/cancel`, { method: 'POST' }),
   createReport: (batchId: string) => request<ReportJob>(`/api/batches/${batchId}/report`, { method: 'POST' }),
   report: (batchId: string) => request<ReportJob>(`/api/batches/${batchId}/report`),
@@ -364,7 +394,11 @@ export const reportApi = {
 }
 
 export const usageApi = {
-  summary: () => request<TokenUsageSummary>('/api/usage/summary'),
+  summary: (params?: { from?: string; to?: string; batchId?: string; gymId?: string; modelId?: string }) => {
+    const entries = Object.entries(params ?? {}).filter(([, value]) => value)
+    const qs = entries.length ? `?${new URLSearchParams(entries.map(([key, value]) => [key, String(value)])).toString()}` : ''
+    return request<TokenUsageSummary>(`/api/usage/summary${qs}`)
+  },
   filters: () => request<{ batches: Array<{ id: string; name: string }>; gyms: Array<{ id: string; name: string }>; models: Array<{ id: string; name: string }> }>('/api/usage/filters'),
   csvUrl: () => `${apiBaseUrl}/api/usage/export/csv`,
 }

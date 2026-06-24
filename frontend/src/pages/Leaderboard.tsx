@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { EmptyState } from '@/components/EmptyState'
+import { Sparkline } from '@/components/charts'
 import { leaderboardApi } from '@/lib/api'
 
 export function Leaderboard() {
@@ -45,6 +46,7 @@ export function Leaderboard() {
               <th>Avg steps</th>
               <th>Tokens</th>
               <th>Cost</th>
+              <th>Trend</th>
             </tr>
           </thead>
           <tbody>
@@ -65,6 +67,7 @@ export function Leaderboard() {
                 <td className="font-mono text-[var(--steel)]">{row.averageSteps.toFixed(1)}</td>
                 <td className="font-mono text-[var(--steel)]">{row.totalTokens}</td>
                 <td className="font-mono text-[var(--steel)]">${row.totalCostUsd.toFixed(4)}</td>
+                <td><Sparkline dataId={`leaderboard-trend-${row.modelId}-${row.gymId}`} data={row.trend ?? []} width={72} height={24} /></td>
               </tr>
             ))}
           </tbody>

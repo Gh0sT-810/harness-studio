@@ -165,13 +165,28 @@ export function Tasks() {
       <div data-id="tasks-list" className="harness-tablewrap overflow-x-auto">
         <table>
           <thead>
-            <tr><th>Task</th><th>Gym</th><th>Prompt</th><th aria-label="actions" /></tr>
+            <tr><th>Task</th><th>Gym</th><th>Difficulty</th><th>Pass rate</th><th>Status</th><th>Avg steps</th><th>Prompt</th><th aria-label="actions" /></tr>
           </thead>
           <tbody>
             {filtered.map((task) => (
               <tr data-id={`task-card-${task.id}`} key={task.id}>
                 <td className="font-semibold text-[var(--ink)]">{task.taskId}</td>
                 <td data-id={`task-gym-${task.id}`} className="whitespace-nowrap text-[var(--steel)]">{gyms.find((gym) => gym.id === task.gymId)?.name ?? 'Unknown gym'}</td>
+                <td><span className="harness-tag capitalize">{task.difficulty ?? 'medium'}</span></td>
+                <td>
+                  {task.runs ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-[var(--surface-soft)]">
+                        <div className="h-full rounded-full bg-[var(--brand-green)]" style={{ width: `${Math.round((task.passRate ?? 0) * 100)}%` }} />
+                      </div>
+                      <span data-id={`task-passrate-${task.id}`} className="font-mono text-[var(--steel)]">{Math.round((task.passRate ?? 0) * 100)}%</span>
+                    </div>
+                  ) : (
+                    <span data-id={`task-passrate-${task.id}`} className="text-[var(--steel)]">—</span>
+                  )}
+                </td>
+                <td><span data-id={`task-status-${task.id}`} className="harness-tag capitalize">{task.status ?? 'enabled'}</span></td>
+                <td data-id={`task-avgsteps-${task.id}`} className="font-mono text-[var(--steel)]">{task.runs ? (task.avgSteps ?? 0).toFixed(1) : '—'}</td>
                 <td className="max-w-md truncate text-[var(--steel)]">{task.prompt}</td>
                 <td>
                   <div className="flex justify-end gap-2">

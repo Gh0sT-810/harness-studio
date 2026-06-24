@@ -35,6 +35,10 @@ func (f *fakeExecutionStore) GetBatchSnapshot(context.Context, string) (models.B
 	return f.snapshot, nil
 }
 
+func (f *fakeExecutionStore) GetBatchAnalytics(context.Context, string) (models.BatchAnalytics, error) {
+	return models.BatchAnalytics{}, nil
+}
+
 func (f *fakeExecutionStore) ListCancelableIterationIDs(context.Context, string) ([]string, error) {
 	return f.cancelIDs, nil
 }

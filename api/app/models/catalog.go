@@ -15,6 +15,8 @@ type Gym struct {
 	TaskCount            int       `json:"taskCount,omitempty"`
 	CreatedAt            time.Time `json:"createdAt"`
 	UpdatedAt            time.Time `json:"updatedAt"`
+	PassRate             float64   `json:"passRate"`
+	Runs                 int       `json:"runs,omitempty"`
 }
 
 type GymRequest struct {
@@ -36,10 +38,17 @@ type Task struct {
 	SimulatorConfig map[string]any `json:"simulatorConfig"`
 	DBJSONValidator map[string]any `json:"dbJsonValidator"`
 	VerifierPath    string         `json:"verifierPath"`
+	Difficulty      string         `json:"difficulty"`
+	Status          string         `json:"status"`
+	MaxSteps        int            `json:"maxSteps"`
+	StartURL        string         `json:"startUrl"`
 	ImportMetadata  map[string]any `json:"importMetadata"`
 	ExportMetadata  map[string]any `json:"exportMetadata"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
+	Runs            int            `json:"runs"`
+	PassRate        float64        `json:"passRate"`
+	AvgSteps        float64        `json:"avgSteps"`
 }
 
 type TaskRequest struct {
@@ -50,6 +59,10 @@ type TaskRequest struct {
 	SimulatorConfig map[string]any `json:"simulatorConfig"`
 	DBJSONValidator map[string]any `json:"dbJsonValidator"`
 	VerifierPath    string         `json:"verifierPath"`
+	Difficulty      string         `json:"difficulty"`
+	Status          string         `json:"status"`
+	MaxSteps        int            `json:"maxSteps"`
+	StartURL        string         `json:"startUrl"`
 }
 
 type ModelProvider struct {
@@ -64,6 +77,8 @@ type ModelProvider struct {
 	Config      map[string]any `json:"config"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
+	ConnectionStatus string     `json:"connectionStatus"`
+	LastTestedAt     *time.Time `json:"lastTestedAt,omitempty"`
 }
 
 type ModelDefinition struct {

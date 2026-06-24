@@ -20,5 +20,6 @@ type LeaderboardRow struct {
 	AverageSteps   float64 `json:"averageSteps"`
 	AverageSeconds float64 `json:"averageSeconds"`
 	TotalTokens    int64   `json:"totalTokens"`
-	TotalCostUSD   float64 `json:"totalCostUsd"`
+	TotalCostUSD   float64   `json:"totalCostUsd"`
+	Trend          []float64 `json:"trend"`
 }

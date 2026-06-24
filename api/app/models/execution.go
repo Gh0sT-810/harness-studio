@@ -12,6 +12,9 @@ type Batch struct {
 	NotificationRead bool      `json:"notificationRead"`
 	Status           string    `json:"status"`
 	CreatedAt        time.Time `json:"createdAt"`
+	PassRate         float64   `json:"passRate"`
+	Cost             float64   `json:"cost"`
+	Models           string    `json:"models"`
 }
 
 type BatchCreateRequest struct {
@@ -60,6 +63,7 @@ type Iteration struct {
 	TimelineArtifactID string         `json:"timelineArtifactId,omitempty"`
 	ResultData         map[string]any `json:"resultData"`
 	TotalSteps         int            `json:"totalSteps"`
+	Cost               float64        `json:"cost"`
 	Artifacts          []Artifact     `json:"artifacts,omitempty"`
 	CreatedAt          time.Time      `json:"createdAt"`
 }

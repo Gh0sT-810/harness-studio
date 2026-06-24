@@ -3,10 +3,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { Gym, gymApi } from '@/lib/api'
+
+function timeAgo(iso?: string) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const day = 86_400_000
+  if (diff < day) return 'today'
+  const days = Math.floor(diff / day)
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  return `${Math.floor(days / 30)}mo ago`
+}
 
 const verificationStrategyOptions = [
   { label: 'verification_endpoint', value: 'verification_endpoint' },
@@ -129,6 +141,14 @@ export function Gyms() {
             </div>
             <h3 className="harness-card-title mt-3">{gym.name}</h3>
             <p className="harness-subtitle mt-1 truncate">{gym.baseUrl}</p>
+            <div data-id={`gym-stats-${gym.id}`} className="mt-3 flex items-center justify-between gap-2">
+              {gym.runs ? (
+                <Badge variant={(gym.passRate ?? 0) >= 0.7 ? 'success' : (gym.passRate ?? 0) >= 0.5 ? 'warning' : 'destructive'}>{Math.round((gym.passRate ?? 0) * 100)}% pass</Badge>
+              ) : (
+                <span className="harness-micro text-[var(--muted)]">No runs yet</span>
+              )}
+              {gym.updatedAt ? <span className="harness-micro shrink-0">updated {timeAgo(gym.updatedAt)}</span> : null}
+            </div>
             <hr className="my-4 border-0 border-t border-[var(--hairline-soft)]" />
             <div className="flex flex-wrap gap-2">
               <Button data-id={`gym-tasks-link-${gym.id}`} variant="secondary" asChild><Link to={`/gyms/${gym.id}/tasks`}>Tasks</Link></Button>

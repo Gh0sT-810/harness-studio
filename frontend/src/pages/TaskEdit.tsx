@@ -27,6 +27,10 @@ function TaskEditForm({ gyms, gymId, task }: { gyms: Gym[]; gymId: string; task:
   const [simulatorConfig, setSimulatorConfig] = useState(JSON.stringify(task.simulatorConfig ?? {}, null, 2))
   const [dbJsonValidator, setDbJsonValidator] = useState(JSON.stringify(task.dbJsonValidator ?? {}, null, 2))
   const [verifierPath, setVerifierPath] = useState(task.verifierPath ?? '')
+  const [difficulty, setDifficulty] = useState(task.difficulty ?? 'medium')
+  const [status, setStatus] = useState(task.status ?? 'enabled')
+  const [maxSteps, setMaxSteps] = useState(task.maxSteps ?? 40)
+  const [startUrl, setStartUrl] = useState(task.startUrl ?? '')
   const gymOptions = useMemo(() => gyms.map((gym) => ({ label: gym.name, value: gym.id })), [gyms])
   const selectedGym = gyms.find((gym) => gym.id === selectedGymId)
 
@@ -40,6 +44,10 @@ function TaskEditForm({ gyms, gymId, task }: { gyms: Gym[]; gymId: string; task:
         simulatorConfig: parseJSON(simulatorConfig),
         dbJsonValidator: parseJSON(dbJsonValidator),
         verifierPath,
+        difficulty,
+        status,
+        maxSteps,
+        startUrl,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['tasks'] })
@@ -84,6 +92,25 @@ function TaskEditForm({ gyms, gymId, task }: { gyms: Gym[]; gymId: string; task:
                 placeholder="Select gym"
                 value={selectedGymId}
               />
+              <label className="grid gap-1.5">
+                <span className="harness-caption-bold">Start URL</span>
+                <input data-id="task-start-url-input" className="harness-input" value={startUrl} onChange={(event) => setStartUrl(event.target.value)} />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="harness-caption-bold">Difficulty</span>
+                <Select dataId="task-difficulty-select" onValueChange={setDifficulty} options={[{ label: 'Easy', value: 'easy' }, { label: 'Medium', value: 'medium' }, { label: 'Hard', value: 'hard' }]} value={difficulty} />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="harness-caption-bold">Max steps</span>
+                <input data-id="task-max-steps-input" type="number" min={1} className="harness-input" value={maxSteps} onChange={(event) => setMaxSteps(Number(event.target.value))} />
+              </label>
+              <div className="grid gap-1.5">
+                <span className="harness-caption-bold">Status</span>
+                <div data-id="task-status-seg" className="harness-seg">
+                  <button type="button" className={status === 'enabled' ? 'active' : ''} onClick={() => setStatus('enabled')}>Enabled</button>
+                  <button type="button" className={status === 'draft' ? 'active' : ''} onClick={() => setStatus('draft')}>Draft</button>
+                </div>
+              </div>
               <textarea data-id="task-simulator-config-input" className="harness-textarea harness-code-field min-h-20" value={simulatorConfig} onChange={(event) => setSimulatorConfig(event.target.value)} />
               <p className="rounded-[var(--radius-md)] border border-[var(--hairline-soft)] bg-[var(--surface-soft)] p-3 text-xs text-[var(--steel)]">Changes apply to future batches only. Past runs keep the task definition they were executed with.</p>
             </div>
