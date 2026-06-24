@@ -7,6 +7,7 @@ import { BarMeter } from '@/components/charts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { batchApi } from '@/lib/api'
+import { downloadArtifact } from '@/lib/artifacts'
 
 export function ReportDetail() {
   const { batchId = '' } = useParams()
@@ -20,6 +21,9 @@ export function ReportDetail() {
   const createReport = useMutation({
     mutationFn: () => batchApi.createReport(batchId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['batch-report', batchId] }),
+  })
+  const downloadArtifactMutation = useMutation({
+    mutationFn: ({ artifactId, name }: { artifactId: string; name: string }) => downloadArtifact(artifactId, name),
   })
   const analyticsQuery = useQuery({
     queryKey: ['batch-analytics', batchId],
@@ -55,7 +59,25 @@ export function ReportDetail() {
               <StatusBadge id="report-detail-status" status={report.status} />
               <p className="harness-code-inline w-fit">report={report.id}</p>
               {report.generatedArtifactId ? (
-                <a className="harness-button-secondary inline-flex w-fit" href={`/api/artifacts/${report.generatedArtifactId}`} target="_blank" rel="noreferrer">Download JSON artifact</a>
+                <div className="grid gap-1">
+                  <Button
+                    data-id="download-report-artifact-button"
+                    variant="secondary"
+                    className="w-fit"
+                    disabled={downloadArtifactMutation.isPending}
+                    onClick={() => {
+                      if (!report.generatedArtifactId) return
+                      downloadArtifactMutation.mutate({ artifactId: report.generatedArtifactId, name: `report-${report.id}.json` })
+                    }}
+                  >
+                    {downloadArtifactMutation.isPending ? 'Downloading...' : 'Download JSON artifact'}
+                  </Button>
+                  {downloadArtifactMutation.isError ? (
+                    <p data-id="download-report-artifact-error" className="text-sm text-[var(--brand-error)]">
+                      Failed to download artifact. Please try again.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </>
           ) : (

@@ -19,8 +19,8 @@ func NewArtifactController(artifactProxy services.ArtifactProxyInterface) *Artif
 }
 
 func (ac *ArtifactController) GetArtifact(c *gin.Context) {
-	body, contentType, err := ac.artifactProxy.GetArtifact(c.Request.Context(), c.Param("id"))
-	ac.writeProxyResponse(c, body, contentType, err)
+	download, err := ac.artifactProxy.GetArtifact(c.Request.Context(), c.Param("id"))
+	ac.writeDownload(c, download, err)
 }
 
 func (ac *ArtifactController) GetArtifactMetadata(c *gin.Context) {
@@ -39,8 +39,8 @@ func (ac *ArtifactController) GetIterationTimeline(c *gin.Context) {
 		ac.writeProxyResponse(c, nil, "", err)
 		return
 	}
-	body, contentType, err := ac.artifactProxy.GetArtifact(c.Request.Context(), artifactID)
-	ac.writeProxyResponse(c, body, contentType, err)
+	download, err := ac.artifactProxy.GetArtifact(c.Request.Context(), artifactID)
+	ac.writeDownload(c, download, err)
 }
 
 func (ac *ArtifactController) GetIterationScreenshot(c *gin.Context) {
@@ -49,29 +49,53 @@ func (ac *ArtifactController) GetIterationScreenshot(c *gin.Context) {
 		ac.writeProxyResponse(c, nil, "", err)
 		return
 	}
-	body, contentType, err := ac.artifactProxy.GetArtifact(c.Request.Context(), artifactID)
-	ac.writeProxyResponse(c, body, contentType, err)
+	download, err := ac.artifactProxy.GetArtifact(c.Request.Context(), artifactID)
+	ac.writeDownload(c, download, err)
 }
 
 func (ac *ArtifactController) GetBatchArchive(c *gin.Context) {
-	body, contentType, err := ac.artifactProxy.ArchiveBatch(c.Request.Context(), c.Param("id"))
-	ac.writeProxyResponse(c, body, contentType, err)
+	download, err := ac.artifactProxy.ArchiveBatch(c.Request.Context(), c.Param("id"))
+	ac.writeDownload(c, download, err)
 }
 
 func (ac *ArtifactController) writeProxyResponse(c *gin.Context, body []byte, contentType string, err error) {
-	if err != nil {
-		var proxyErr services.ArtifactProxyError
-		if errors.As(err, &proxyErr) && proxyErr.StatusCode == http.StatusNotFound {
-			utils.ErrorResponse(c, http.StatusNotFound, "artifact not found")
-			return
-		}
-		utils.ErrorResponse(c, http.StatusBadGateway, "artifact service request failed")
+	if ac.handleProxyError(c, err) {
 		return
 	}
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 	c.Data(http.StatusOK, contentType, body)
+}
+
+// writeDownload forwards a binary artifact along with the upstream
+// Content-Disposition so the browser saves a real file (with its original
+// filename) instead of rendering the body inline.
+func (ac *ArtifactController) writeDownload(c *gin.Context, download services.ArtifactDownload, err error) {
+	if ac.handleProxyError(c, err) {
+		return
+	}
+	if download.ContentDisposition != "" {
+		c.Header("Content-Disposition", download.ContentDisposition)
+	}
+	contentType := download.ContentType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	c.Data(http.StatusOK, contentType, download.Body)
+}
+
+func (ac *ArtifactController) handleProxyError(c *gin.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	var proxyErr services.ArtifactProxyError
+	if errors.As(err, &proxyErr) && proxyErr.StatusCode == http.StatusNotFound {
+		utils.ErrorResponse(c, http.StatusNotFound, "artifact not found")
+		return true
+	}
+	utils.ErrorResponse(c, http.StatusBadGateway, "artifact service request failed")
+	return true
 }
 
 type artifactSummary struct {

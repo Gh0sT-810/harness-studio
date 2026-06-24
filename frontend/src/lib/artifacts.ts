@@ -64,6 +64,42 @@ export async function authedFetch(path: string) {
   return response
 }
 
+function filenameFromContentDisposition(header: string | null): string | undefined {
+  if (!header) return undefined
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1])
+    } catch {
+      return utf8Match[1]
+    }
+  }
+  return header.match(/filename="?([^";]+)"?/i)?.[1]?.trim()
+}
+
+/**
+ * Download an artifact through the authenticated API. A plain `<a href>` cannot
+ * carry the bearer token (it lives in localStorage, attached only by fetch), so
+ * the download is fetched with the Authorization header, read as a Blob, and
+ * saved via a synthetic anchor. Throws when the request is not OK so callers can
+ * surface a failure. Prefers the server-provided filename, falling back to the
+ * caller-supplied name.
+ */
+export async function downloadArtifact(artifactId: string, fallbackName: string) {
+  const response = await authedFetch(`/api/artifacts/${artifactId}`)
+  const filename = filenameFromContentDisposition(response.headers.get('Content-Disposition')) ?? fallbackName
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 export const artifactApi = {
   listIterationFiles: async (iterationId: string) => {
     const response = await authedFetch(`/api/iterations/${iterationId}/files`)

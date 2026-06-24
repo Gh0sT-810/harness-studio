@@ -9,6 +9,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { batchApi } from '@/lib/api'
+import { downloadArtifact } from '@/lib/artifacts'
 import { BatchEventEnvelope, useBatchEvents } from '@/lib/batch-events'
 import { applyBatchEvent, createLiveBatchState, LiveBatchState } from '@/lib/live-batch-store'
 
@@ -43,6 +44,9 @@ export function BatchSnapshotPage() {
   const createReport = useMutation({
     mutationFn: () => batchApi.createReport(id ?? ''),
     onSuccess: () => refetchSnapshot(),
+  })
+  const downloadReportArtifact = useMutation({
+    mutationFn: ({ artifactId, name }: { artifactId: string; name: string }) => downloadArtifact(artifactId, name),
   })
   const terminateBatch = useMutation({
     mutationFn: () => batchApi.cancel(id ?? ''),
@@ -242,11 +246,21 @@ export function BatchSnapshotPage() {
                 <Link to={`/reports/${snapshot.batch.id}`}>Preview report</Link>
               </Button>
               {snapshot.report?.artifactId ? (
-                <Button data-id="download-batch-report" variant="secondary" size="sm" asChild>
-                  <a href={`/api/artifacts/${snapshot.report.artifactId}`} target="_blank" rel="noreferrer">Download</a>
+                <Button
+                  data-id="download-batch-report"
+                  variant="secondary"
+                  size="sm"
+                  disabled={downloadReportArtifact.isPending}
+                  onClick={() => {
+                    if (!snapshot.report?.artifactId) return
+                    downloadReportArtifact.mutate({ artifactId: snapshot.report.artifactId, name: `report-${snapshot.batch.id}.json` })
+                  }}
+                >
+                  {downloadReportArtifact.isPending ? 'Downloading...' : 'Download'}
                 </Button>
               ) : null}
             </div>
+            {downloadReportArtifact.isError ? <p data-id="download-batch-report-error" className="mt-2 text-sm text-[var(--brand-error)]">Failed to download report artifact. Please try again.</p> : null}
             {snapshot.report?.error ? <p className="mt-2 text-sm text-[var(--brand-error)]">{snapshot.report.error}</p> : null}
           </div>
 

@@ -16,6 +16,7 @@ type mockArtifactProxy struct {
 	listType    string
 	artifact    map[string][]byte
 	contentType map[string]string
+	disposition map[string]string
 	err         error
 }
 
@@ -23,23 +24,27 @@ func (m mockArtifactProxy) ListScope(context.Context, string) ([]byte, string, e
 	return m.listBody, m.listType, m.err
 }
 
-func (m mockArtifactProxy) GetArtifact(_ context.Context, artifactID string) ([]byte, string, error) {
+func (m mockArtifactProxy) GetArtifact(_ context.Context, artifactID string) (services.ArtifactDownload, error) {
 	if m.err != nil {
-		return nil, "", m.err
+		return services.ArtifactDownload{}, m.err
 	}
-	return m.artifact[artifactID], m.contentType[artifactID], nil
+	return services.ArtifactDownload{
+		Body:               m.artifact[artifactID],
+		ContentType:        m.contentType[artifactID],
+		ContentDisposition: m.disposition[artifactID],
+	}, nil
 }
 
 func (m mockArtifactProxy) GetArtifactMetadata(context.Context, string) ([]byte, string, error) {
 	return nil, "", m.err
 }
 
-func (m mockArtifactProxy) ArchiveScope(context.Context, string) ([]byte, string, error) {
-	return nil, "", m.err
+func (m mockArtifactProxy) ArchiveScope(context.Context, string) (services.ArtifactDownload, error) {
+	return services.ArtifactDownload{}, m.err
 }
 
-func (m mockArtifactProxy) ArchiveBatch(context.Context, string) ([]byte, string, error) {
-	return nil, "", m.err
+func (m mockArtifactProxy) ArchiveBatch(context.Context, string) (services.ArtifactDownload, error) {
+	return services.ArtifactDownload{}, m.err
 }
 
 func setupArtifactRouter(proxy services.ArtifactProxyInterface) *gin.Engine {
@@ -89,7 +94,23 @@ func TestArtifactControllerReturnsAfterScreenshotByDefault(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "image/png", w.Header().Get("Content-Type"))
+	assert.Empty(t, w.Header().Get("Content-Disposition"))
 	assert.Equal(t, "after", w.Body.String())
+}
+
+func TestArtifactControllerForwardsContentDisposition(t *testing.T) {
+	router := setupArtifactRouter(mockArtifactProxy{
+		artifact:    map[string][]byte{"a1": []byte(`{"ok":true}`)},
+		contentType: map[string]string{"a1": "application/json"},
+		disposition: map[string]string{"a1": `attachment; filename="batch_report.json"`},
+	})
+
+	w := performRequest(router, http.MethodGet, "/artifacts/a1", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Equal(t, `attachment; filename="batch_report.json"`, w.Header().Get("Content-Disposition"))
+	assert.JSONEq(t, `{"ok":true}`, w.Body.String())
 }
 
 func TestArtifactControllerMapsArtifactProxyNotFound(t *testing.T) {

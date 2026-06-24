@@ -34,30 +34,34 @@ func TestArtifactProxyDownloadsArtifact(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/internal/artifacts/a1", r.URL.Path)
 		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Disposition", `attachment; filename="frame.png"`)
 		_, _ = w.Write([]byte("png"))
 	}))
 	defer server.Close()
 
 	proxy := NewHTTPArtifactProxy(server.URL, time.Second)
-	body, contentType, err := proxy.GetArtifact(context.Background(), "a1")
+	download, err := proxy.GetArtifact(context.Background(), "a1")
 
 	require.NoError(t, err)
-	assert.Equal(t, "image/png", contentType)
-	assert.Equal(t, []byte("png"), body)
+	assert.Equal(t, "image/png", download.ContentType)
+	assert.Equal(t, `attachment; filename="frame.png"`, download.ContentDisposition)
+	assert.Equal(t, []byte("png"), download.Body)
 }
 
 func TestArtifactProxyStreamsArchive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/internal/batches/b1/archive", r.URL.Path)
 		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="batches_b1.zip"`)
 		_, _ = io.WriteString(w, "zip")
 	}))
 	defer server.Close()
 
 	proxy := NewHTTPArtifactProxy(server.URL, time.Second)
-	body, contentType, err := proxy.ArchiveBatch(context.Background(), "b1")
+	download, err := proxy.ArchiveBatch(context.Background(), "b1")
 
 	require.NoError(t, err)
-	assert.Equal(t, "application/zip", contentType)
-	assert.Equal(t, []byte("zip"), body)
+	assert.Equal(t, "application/zip", download.ContentType)
+	assert.Equal(t, `attachment; filename="batches_b1.zip"`, download.ContentDisposition)
+	assert.Equal(t, []byte("zip"), download.Body)
 }
