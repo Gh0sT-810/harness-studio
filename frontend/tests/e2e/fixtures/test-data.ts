@@ -123,6 +123,13 @@ export const mockReportJob = {
   format: 'json',
   status: 'completed',
   generatedArtifactId: 'artifact-report-1',
+  payload: {
+    artifacts: {
+      json: { id: 'artifact-report-1', filename: 'batch_report.json', contentType: 'application/json' },
+      csv: { id: 'artifact-report-csv-1', filename: 'batch_report.csv', contentType: 'text/csv' },
+      xlsx: { id: 'artifact-report-xlsx-1', filename: 'batch_report.xlsx', contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    },
+  },
 }
 
 export const mockDomain = {

@@ -60,18 +60,50 @@ export function ReportDetail() {
               <p className="harness-code-inline w-fit">report={report.id}</p>
               {report.generatedArtifactId ? (
                 <div className="grid gap-1">
-                  <Button
-                    data-id="download-report-artifact-button"
-                    variant="secondary"
-                    className="w-fit"
-                    disabled={downloadArtifactMutation.isPending}
-                    onClick={() => {
-                      if (!report.generatedArtifactId) return
-                      downloadArtifactMutation.mutate({ artifactId: report.generatedArtifactId, name: `report-${report.id}.json` })
-                    }}
-                  >
-                    {downloadArtifactMutation.isPending ? 'Downloading...' : 'Download JSON artifact'}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      data-id="download-report-artifact-button"
+                      variant="secondary"
+                      className="w-fit"
+                      disabled={downloadArtifactMutation.isPending}
+                      onClick={() => {
+                        if (!report.generatedArtifactId) return
+                        downloadArtifactMutation.mutate({ artifactId: report.generatedArtifactId, name: `report-${report.id}.json` })
+                      }}
+                    >
+                      {downloadArtifactMutation.isPending ? 'Downloading...' : 'Download JSON artifact'}
+                    </Button>
+                    {report.payload?.artifacts?.csv?.id ? (
+                      <Button
+                        data-id="download-report-csv-button"
+                        variant="secondary"
+                        className="w-fit"
+                        disabled={downloadArtifactMutation.isPending}
+                        onClick={() => {
+                          const csvId = report.payload?.artifacts?.csv?.id
+                          if (!csvId) return
+                          downloadArtifactMutation.mutate({ artifactId: csvId, name: `report-${report.id}.csv` })
+                        }}
+                      >
+                        {downloadArtifactMutation.isPending ? 'Downloading...' : 'Download CSV'}
+                      </Button>
+                    ) : null}
+                    {report.payload?.artifacts?.xlsx?.id ? (
+                      <Button
+                        data-id="download-report-xlsx-button"
+                        variant="secondary"
+                        className="w-fit"
+                        disabled={downloadArtifactMutation.isPending}
+                        onClick={() => {
+                          const xlsxId = report.payload?.artifacts?.xlsx?.id
+                          if (!xlsxId) return
+                          downloadArtifactMutation.mutate({ artifactId: xlsxId, name: `report-${report.id}.xlsx` })
+                        }}
+                      >
+                        {downloadArtifactMutation.isPending ? 'Downloading...' : 'Download Excel report'}
+                      </Button>
+                    ) : null}
+                  </div>
                   {downloadArtifactMutation.isError ? (
                     <p data-id="download-report-artifact-error" className="text-sm text-[var(--brand-error)]">
                       Failed to download artifact. Please try again.

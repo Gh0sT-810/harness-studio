@@ -26,6 +26,17 @@ class ArtifactClient:
         except (HTTPError, URLError) as exc:
             raise ArtifactClientError(str(exc)) from exc
 
+    def get_json(self, artifact_id: str) -> dict:
+        """Fetch an artifact's bytes and parse them as JSON (e.g. an action timeline)."""
+        req = request.Request(f"{self.base_url}/internal/artifacts/{artifact_id}", method="GET")
+        try:
+            with request.urlopen(req, timeout=self.timeout_seconds) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise ArtifactClientError(f"artifact-service returned status {response.status}")
+                return json.loads(response.read().decode())
+        except (HTTPError, URLError) as exc:
+            raise ArtifactClientError(str(exc)) from exc
+
     def _multipart_body(self, boundary: str, scope: str, artifact_type: str, filename: str, content: bytes, metadata: dict, content_type: str) -> bytes:
         parts: list[bytes] = []
         for name, value in {"scope": scope, "artifactType": artifact_type, "metadata": json.dumps(metadata)}.items():

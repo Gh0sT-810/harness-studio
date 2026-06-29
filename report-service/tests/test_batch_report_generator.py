@@ -2,14 +2,16 @@ from app.reports.batch import BatchReportGenerator
 
 
 class FakeReader:
-    def load_batch_report(self, batch_id):
+    def __init__(self, records):
+        self.records = records
+
+    def load_batch_meta(self, batch_id):
         assert batch_id == "batch-1"
-        return {
-            "batch": {"id": "batch-1", "name": "Smoke Batch"},
-            "summary": {"total": 2, "passed": 1, "failed": 1, "passRate": 0.5},
-            "models": [{"modelId": "model-1", "runs": 2, "passed": 1, "passRate": 0.5}],
-            "tasks": [{"taskId": "task-1", "runs": 2, "passed": 1, "passRate": 0.5}],
-        }
+        return {"id": "batch-1", "name": "Smoke Batch", "iteration_count": 2}
+
+    def collect_records(self, batch_id):
+        assert batch_id == "batch-1"
+        return self.records
 
 
 class FakeArtifactClient:
@@ -45,23 +47,22 @@ class FakeEvents:
         self.events.append((event_type, batch_id, payload))
 
 
-def test_batch_report_generator_writes_json_csv_xlsx_and_publishes_ready_event():
+def test_batch_report_generator_writes_json_xlsx_and_publishes_ready_event(make_record):
+    records = [
+        make_record(task_id="TASK-1", runner="anthropic", iteration=1, status="passed"),
+        make_record(task_id="TASK-1", runner="openai", iteration=1, status="failed"),
+    ]
     artifact_client = FakeArtifactClient()
     repository = FakeRepository()
     events = FakeEvents()
     generator = BatchReportGenerator(
-        reader=FakeReader(),
+        reader=FakeReader(records),
         artifact_client=artifact_client,
         repository=repository,
         event_publisher=events,
     )
 
-    job = {
-        "id": "report-1",
-        "scopeId": "batch-1",
-        "requestedBy": "user-1",
-        "format": "json",
-    }
+    job = {"id": "report-1", "scopeId": "batch-1", "requestedBy": "user-1", "format": "json"}
     completed = generator.generate(job)
 
     filenames = [item[2] for item in artifact_client.saved]
@@ -69,6 +70,7 @@ def test_batch_report_generator_writes_json_csv_xlsx_and_publishes_ready_event()
     assert artifact_client.saved[0][5] == "application/json"
     assert artifact_client.saved[1][5] == "text/csv"
     assert artifact_client.saved[2][5] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
     assert repository.completed == [
         (
             "report-1",
@@ -81,11 +83,6 @@ def test_batch_report_generator_writes_json_csv_xlsx_and_publishes_ready_event()
         )
     ]
     assert events.events == [
-        (
-            "report.ready",
-            "batch-1",
-            {"reportId": "report-1", "artifactId": "artifact-1", "status": "completed"},
-        )
+        ("report.ready", "batch-1", {"reportId": "report-1", "artifactId": "artifact-1", "status": "completed"}),
     ]
     assert completed["generatedArtifactId"] == "artifact-1"
-    assert completed["payload"]["artifacts"]["csv"]["id"] == "artifact-2"

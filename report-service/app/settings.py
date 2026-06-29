@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     artifact_service_timeout_seconds: int = 10
     report_service_port: int = 8092
     default_report_format: str = "json"
+    frontend_base_url: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

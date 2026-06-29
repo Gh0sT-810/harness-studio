@@ -547,6 +547,30 @@ components:
           type: string
         generatedArtifactId:
           type: string
+          description: Artifact ID of the generated JSON report snapshot
+        payload:
+          type: object
+          description: Generation output metadata
+          properties:
+            artifacts:
+              type: object
+              description: Descriptors for each generated report format (json, csv, xlsx)
+              properties:
+                json:
+                  $ref: '#/components/schemas/ReportArtifactDescriptor'
+                csv:
+                  $ref: '#/components/schemas/ReportArtifactDescriptor'
+                xlsx:
+                  $ref: '#/components/schemas/ReportArtifactDescriptor'
+    ReportArtifactDescriptor:
+      type: object
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        contentType:
+          type: string
     ModelProviderRequest:
       type: object
       required: [key, displayName, adapterKey]

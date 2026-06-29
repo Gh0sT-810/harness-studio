@@ -158,6 +158,12 @@ export type ReportReadiness = {
   error?: string
 }
 
+export type ReportArtifactDescriptor = {
+  id: string
+  filename: string
+  contentType: string
+}
+
 export type ReportJob = {
   id: string
   jobType?: string
@@ -170,6 +176,13 @@ export type ReportJob = {
   createdAt?: string
   startedAt?: string
   completedAt?: string
+  payload?: {
+    artifacts?: {
+      json?: ReportArtifactDescriptor
+      csv?: ReportArtifactDescriptor
+      xlsx?: ReportArtifactDescriptor
+    }
+  }
 }
 
 export type TokenUsageSummary = {
