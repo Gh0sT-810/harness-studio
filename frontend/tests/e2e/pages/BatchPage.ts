@@ -15,7 +15,9 @@ export class BatchPage extends BasePage {
   readonly liveMonitor: Locator
   readonly liveMonitorTimeline: Locator
   readonly liveMonitorBrowser: Locator
-  readonly liveMonitorFiles: Locator
+  readonly liveMonitorSidePanel: Locator
+  readonly liveMonitorTimelineActivity: Locator
+  readonly logsViewer: Locator
 
   constructor(page: Page) {
     super(page)
@@ -31,7 +33,9 @@ export class BatchPage extends BasePage {
     this.liveMonitor = this.byDataId('live-monitor')
     this.liveMonitorTimeline = this.byDataId('live-monitor-timeline')
     this.liveMonitorBrowser = this.byDataId('live-monitor-browser')
-    this.liveMonitorFiles = this.byDataId('live-monitor-files')
+    this.liveMonitorSidePanel = this.byDataId('live-monitor-side-panel')
+    this.liveMonitorTimelineActivity = this.byDataId('live-monitor-timeline-activity')
+    this.logsViewer = this.byDataId('logs-viewer')
   }
 
   batchCard(id: string) {
@@ -48,5 +52,9 @@ export class BatchPage extends BasePage {
 
   openLiveMonitor(id: string) {
     return this.byDataId(`open-live-monitor-${id}`)
+  }
+
+  openLogs(id: string) {
+    return this.byDataId(`open-logs-${id}`)
   }
 }

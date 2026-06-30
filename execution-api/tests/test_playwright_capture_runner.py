@@ -231,6 +231,7 @@ class RichFakeAdapterResult:
             "provider": "openai",
             "action": "click",
             "args": {"x": 1, "y": 2},
+            "reasoning": "Clicking the submit button.",
             "_screenshotBeforeBase64": base64.b64encode(b"before-action").decode("ascii"),
             "_screenshotAfterBase64": base64.b64encode(b"after-action").decode("ascii"),
         }
@@ -304,6 +305,23 @@ def test_playwright_capture_runner_persists_adapter_timeline_and_conversation():
     assert result.steps[1].payload["action"] == "click"
     assert result.steps[1].payload["beforeArtifactId"] == action_step["beforeArtifactId"]
     assert result.steps[1].payload["afterArtifactId"] == action_step["afterArtifactId"]
+    # Per-step reasoning flows from the adapter entry through to the timeline step.
+    assert action_step["reasoning"] == "Clicking the submit button."
+    # The model's final answer is surfaced on the terminal step.
+    assert timeline["steps"][-1]["response"] == "adapter completed"
+
+    # The execution log is rich/structured, not a single placeholder line.
+    log_artifact = next(item[4] for item in client.saved if item[0] == "log")
+    log_text = log_artifact["content"].decode()
+    log_text_lines = [line for line in log_text.splitlines() if line.strip()]
+    assert len(log_text_lines) > 3
+    assert any("navigated to" in line for line in log_text_lines)
+    assert any("action 2:" in line for line in log_text_lines)
+    assert any("action 2 reasoning: Clicking the submit button." in line for line in log_text_lines)
+    assert any("verification" in line for line in log_text_lines)
+    # Each line carries the "<ISO timestamp> <LEVEL> ..." shape the UI parser expects.
+    assert all(line[:4].isdigit() for line in log_text_lines)
+    assert log_artifact["metadata"]["lineCount"] == len(log_text_lines)
 
 
 def test_playwright_capture_runner_streams_steps_to_observer_without_duplicates():
@@ -329,6 +347,15 @@ def test_playwright_capture_runner_streams_steps_to_observer_without_duplicates(
     observed_ids = [artifact["id"] for artifact in observer.artifacts]
     assert len(observed_ids) == len(set(observed_ids))
     assert set(observed_ids) == {artifact["id"] for artifact in result.artifacts}
+
+    # The execution log streams live: announced during the run (before the
+    # terminal after-screenshot) and upserted under a stable id.
+    log_pos = next(i for i, a in enumerate(observer.artifacts) if a["artifactType"] == "log")
+    terminal_after_pos = next(i for i, a in enumerate(observer.artifacts) if a["objectKey"].endswith("/after.png"))
+    assert log_pos < terminal_after_pos
+    log_writes = [item for item in client.saved if item[0] == "log"]
+    assert len(log_writes) >= 2  # per-step flush + final flush
+    assert len({item[4]["id"] for item in log_writes}) == 1  # stable id via upsert
 
     # The action step carries before and after captures for the cursor layer.
     action_step = next(step for step, _ in observer.steps if step["id"] == "step-2")

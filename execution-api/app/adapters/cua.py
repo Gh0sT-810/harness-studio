@@ -164,10 +164,15 @@ class OpenAIResponsesComputerAdapter(ComputerUseAdapter):
                     conversation.append({"role": "assistant", "content": final_text})
                     return AdapterResult(content=final_text, usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
                 return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
+            # Any message text emitted in the same turn as the computer calls is
+            # the model's reasoning for those actions; attach it to each entry.
+            reasoning = _openai_text(response)
             for call in calls:
                 action = call.get("action", {})
                 action_name = str(action.get("type") or action.get("action") or "")
                 entry = self._execute_action(computer, action_name, action)
+                if reasoning:
+                    entry["reasoning"] = reasoning
                 timeline.append(entry)
                 self._emit_step(context, entry)
                 computer_outputs.append({"call_id": call.get("call_id"), "screenshot": self._feedback_screenshot(entry, computer)})
@@ -201,23 +206,29 @@ class AnthropicComputerUseAdapter(ComputerUseAdapter):
             usage = response.get("usage", {})
             usages.append({"input_tokens": usage.get("input_tokens", 0), "output_tokens": usage.get("output_tokens", 0)})
             text = _anthropic_text(response)
+            tool_uses = [item for item in response.get("content", []) if item.get("type") == "tool_use"]
+            # Tool calls take priority over text: a working turn often carries
+            # both, where the text is the reasoning for the actions. Only a turn
+            # with no tool calls is treated as the final answer.
+            if tool_uses:
+                messages.append({"role": "assistant", "content": response.get("content", [])})
+                tool_result_content = []
+                for tool_use in tool_uses:
+                    args = dict(tool_use.get("input", {}))
+                    action_name = str(args.pop("action", ""))
+                    entry = self._execute_action(computer, action_name, args)
+                    if text:
+                        entry["reasoning"] = text
+                    timeline.append(entry)
+                    self._emit_step(context, entry)
+                    tool_result_content.append(_anthropic_tool_result(tool_use.get("id"), self._feedback_screenshot(entry, computer)))
+                messages.append({"role": "user", "content": tool_result_content})
+                continue
+
             if text:
                 conversation.append({"role": "assistant", "content": text})
                 return AdapterResult(content=text, usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
-
-            tool_uses = [item for item in response.get("content", []) if item.get("type") == "tool_use"]
-            if not tool_uses:
-                return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
-            messages.append({"role": "assistant", "content": response.get("content", [])})
-            tool_result_content = []
-            for tool_use in tool_uses:
-                args = dict(tool_use.get("input", {}))
-                action_name = str(args.pop("action", ""))
-                entry = self._execute_action(computer, action_name, args)
-                timeline.append(entry)
-                self._emit_step(context, entry)
-                tool_result_content.append(_anthropic_tool_result(tool_use.get("id"), self._feedback_screenshot(entry, computer)))
-            messages.append({"role": "user", "content": tool_result_content})
+            return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
 
         return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
 
@@ -247,23 +258,29 @@ class GeminiComputerUseAdapter(ComputerUseAdapter):
             response = client.generate_content(model=self.model.model_name, prompt=prompt, contents=contents)
             usages.append(_gemini_usage(response.get("usage_metadata", {})))
             text = response.get("text", "")
+            calls = response.get("function_calls", [])
+            # Function calls take priority over text: when a turn carries both,
+            # the text is the reasoning for the actions. A turn with no calls is
+            # the final answer.
+            if calls:
+                contents.append({"role": "model", "parts": [{"function_call": call} for call in calls]})
+                function_response_parts = []
+                for call in calls:
+                    action_name = str(call.get("name", ""))
+                    args = dict(call.get("args", {}))
+                    entry = self._execute_action(computer, action_name, args)
+                    if text:
+                        entry["reasoning"] = text
+                    timeline.append(entry)
+                    self._emit_step(context, entry)
+                    function_response_parts.append(_gemini_function_response(action_name, self._feedback_screenshot(entry, computer)))
+                contents.append({"role": "user", "parts": function_response_parts})
+                continue
+
             if text:
                 conversation.append({"role": "assistant", "content": text})
                 return AdapterResult(content=text, usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
-
-            calls = response.get("function_calls", [])
-            if not calls:
-                return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
-            contents.append({"role": "model", "parts": [{"function_call": call} for call in calls]})
-            function_response_parts = []
-            for call in calls:
-                action_name = str(call.get("name", ""))
-                args = dict(call.get("args", {}))
-                entry = self._execute_action(computer, action_name, args)
-                timeline.append(entry)
-                self._emit_step(context, entry)
-                function_response_parts.append(_gemini_function_response(action_name, self._feedback_screenshot(entry, computer)))
-            contents.append({"role": "user", "parts": function_response_parts})
+            return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
 
         return AdapterResult(content="", usage=_sum_usage(usages), timeline=timeline, conversation=conversation)
 

@@ -85,7 +85,7 @@ test.describe('Live Monitor', () => {
     await expect(batchPage.liveMonitor).toHaveCSS('border-top-color', 'rgb(229, 229, 229)')
     await expect(batchPage.liveMonitorTimeline).toBeVisible()
     await expect(batchPage.liveMonitorBrowser).toBeVisible()
-    await expect(batchPage.liveMonitorFiles).toBeVisible()
+    await expect(batchPage.liveMonitorSidePanel).toBeVisible()
     await expect(page.locator('[data-id="live-monitor-playback-header"]')).toBeVisible()
     await expect(page.locator('[data-id="live-monitor-progress-label"]')).toHaveText('Action 5 of 5')
     await expect(page.locator('[data-id="live-monitor-scrubber"]')).not.toHaveJSProperty('tagName', 'INPUT')
@@ -96,12 +96,19 @@ test.describe('Live Monitor', () => {
     await expect(page.locator('[data-id="live-monitor-url"]')).toContainText('https://example.com')
     await expect(page.locator('[data-id="live-monitor-play"]')).toBeVisible()
     await expect(page.locator('[data-id="live-monitor-speed-1"]')).toBeVisible()
-    await expect(page.locator('[data-id="live-monitor-file-timeline-1"]')).toContainText('action_timeline.json')
-    await expect(batchPage.liveMonitorFiles).toContainText('timeline')
-    await expect(batchPage.liveMonitorFiles).toContainText('log')
-    await expect(batchPage.liveMonitorFiles).toContainText('conversation')
-    await expect(batchPage.liveMonitorFiles).toContainText('task response')
-    await expect(batchPage.liveMonitorFiles).toContainText('verification')
+    // Right panel: the Timeline section is open by default with its View JSON
+    // button; every other artifact group is a collapsed section (body absent).
+    await expect(batchPage.liveMonitorTimelineActivity).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-timeline-view-json"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-section-log"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-section-conversation"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-section-task_response"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-section-verification"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-section-log-body"]')).toHaveCount(0)
+    // Expanding a collapsed group reveals its file links.
+    await page.locator('[data-id="live-monitor-section-log"]').click()
+    await expect(page.locator('[data-id="live-monitor-section-log-body"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-file-log-1"]')).toContainText('execution.log')
     const screenshot = page.locator('[data-id="live-monitor-screenshot"]')
     await expect(screenshot).toBeVisible()
     // Browsing defaults to the "before" frame ("What will be performed").
@@ -347,5 +354,64 @@ test.describe('Live Monitor', () => {
     await expectScreenshotDecoded(screenshot)
     // The terminal step carries the final cursor position.
     await expect(page.locator('[data-id="live-monitor-mouse-cursor"]')).toBeVisible()
+  })
+
+  test('right side panel scrolls to reach lower artifact sections', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 560 })
+    const batchPage = new BatchPage(page)
+
+    await page.goto('/batches/b1/runs')
+    await batchPage.openLiveMonitor('i1').click()
+    await expect(batchPage.liveMonitor).toBeVisible()
+
+    const panel = page.locator('[data-id="live-monitor-side-panel"]')
+    // Expand a lower artifact group so the panel content exceeds its height.
+    await page.locator('[data-id="live-monitor-section-screenshot"]').click()
+    // The panel is a single bounded scroll container: sections keep their full
+    // height (no invisible clipping) and the panel scrolls to reveal them.
+    await expect.poll(() => panel.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0)
+    // The last screenshot file (well below the fold) is reachable by scrolling.
+    const lastFile = page.locator('[data-id="live-monitor-file-after-4"]')
+    await lastFile.scrollIntoViewIfNeeded()
+    await expect(lastFile).toBeVisible()
+    expect(await panel.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+  })
+
+  test('timeline activity panel shows reasoning, syncs with playback, filters, and opens raw JSON', async ({ page }) => {
+    const batchPage = new BatchPage(page)
+
+    await page.goto('/batches/b1/runs')
+    await batchPage.openLiveMonitor('i1').click()
+    await expect(batchPage.liveMonitor).toBeVisible()
+
+    // Selecting the click step (left timeline) drives the synced activity panel:
+    // the detail block shows that step's reasoning, and its row is highlighted.
+    await page.locator('[data-id="live-monitor-step-1"]').click()
+    await expect(page.locator('[data-id="live-monitor-progress-label"]')).toHaveText('Action 2 of 5')
+    await expect(page.locator('[data-id="live-monitor-activity-reasoning"]')).toContainText('Add to cart')
+    await expect(page.locator('[data-id="live-monitor-activity-step-1"]')).toHaveAttribute('aria-current', 'true')
+
+    // Steps without captured reasoning fall back to the step message.
+    await page.locator('[data-id="live-monitor-step-0"]').click()
+    await expect(page.locator('[data-id="live-monitor-activity-reasoning"]')).toContainText('Captured browser state')
+
+    // Clicking an activity row navigates playback (and the browser replay) in lockstep.
+    await page.locator('[data-id="live-monitor-activity-step-2"]').click()
+    await expect(page.locator('[data-id="live-monitor-progress-label"]')).toHaveText('Action 3 of 5')
+    await expect(page.locator('[data-id="live-monitor-action-footer"]')).toContainText('keypress')
+
+    // The filter narrows the thread to matching steps.
+    await page.locator('[data-id="live-monitor-timeline-filter"]').fill('keypress')
+    await expect(page.locator('[data-id="live-monitor-activity-step-2"]')).toBeVisible()
+    await expect(page.locator('[data-id="live-monitor-activity-step-0"]')).toHaveCount(0)
+    await page.locator('[data-id="live-monitor-timeline-filter"]').fill('')
+
+    // View JSON opens the raw timeline artifact in a new tab and redirects it to
+    // the fetched blob (so it does not rely on the popup blocker being disabled).
+    const popupPromise = page.waitForEvent('popup')
+    await page.locator('[data-id="live-monitor-timeline-view-json"]').click()
+    const popup = await popupPromise
+    await expect.poll(() => popup.url()).toContain('blob:')
+    await popup.close()
   })
 })

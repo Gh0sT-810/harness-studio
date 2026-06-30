@@ -123,12 +123,13 @@ class FakeAnthropicClient:
         if len(self.calls) == 1:
             return {
                 "content": [
+                    {"type": "text", "text": "Typing the search query."},
                     {
                         "type": "tool_use",
                         "id": "tool-1",
                         "name": "computer",
                         "input": {"action": "type", "text": "hello"},
-                    }
+                    },
                 ],
                 "usage": {"input_tokens": 4, "output_tokens": 2},
             }
@@ -146,6 +147,7 @@ class FakeGeminiClient:
         self.calls.append(kwargs)
         if len(self.calls) == 1:
             return {
+                "text": "Scrolling down to reveal the results.",
                 "function_calls": [
                     {
                         "name": "scroll",
@@ -173,6 +175,8 @@ def test_openai_responses_adapter_executes_computer_calls_and_returns_final_resp
     assert result.usage == {"input_tokens": 8, "output_tokens": 6, "total_tokens": 14, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "openai"
     assert result.timeline[0]["action"] == "click"
+    # No message text accompanied the computer call, so no reasoning is attached.
+    assert "reasoning" not in result.timeline[0]
     assert computer.calls == [("screenshot",), ("click", 10, 20, "left"), ("screenshot",)]
     assert client.calls[1]["previous_response_id"] == "response-1"
     assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
@@ -205,6 +209,8 @@ def test_openai_responses_adapter_executes_calls_before_treating_text_as_final()
 
     assert result.content == "openai done"
     assert result.timeline[0]["action"] == "click"
+    # The message text in the same turn as the call is captured as reasoning.
+    assert result.timeline[0]["reasoning"] == "I will click the target."
     assert computer.calls == [("screenshot",), ("click", 10, 20, "left"), ("screenshot",)]
     assert client.calls[1]["computer_outputs"][0]["call_id"] == "call-1"
 
@@ -222,6 +228,8 @@ def test_anthropic_adapter_executes_tool_use_and_returns_final_response():
     assert result.usage == {"input_tokens": 7, "output_tokens": 7, "total_tokens": 14, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "anthropic"
     assert result.timeline[0]["action"] == "type"
+    # Text emitted alongside the tool_use is captured as reasoning.
+    assert result.timeline[0]["reasoning"] == "Typing the search query."
     assert computer.calls == [("screenshot",), ("type", "hello"), ("screenshot",)]
     assert client.calls[1]["messages"][1]["role"] == "assistant"
     assert client.calls[1]["messages"][2]["content"][0]["tool_use_id"] == "tool-1"
@@ -240,6 +248,8 @@ def test_gemini_adapter_executes_function_calls_and_returns_final_response():
     assert result.usage == {"input_tokens": 8, "output_tokens": 7, "total_tokens": 15, "cost_usd": 0}
     assert result.timeline[0]["provider"] == "gemini"
     assert result.timeline[0]["action"] == "scroll"
+    # Text emitted alongside the function call is captured as reasoning.
+    assert result.timeline[0]["reasoning"] == "Scrolling down to reveal the results."
     assert computer.calls == [("screenshot",), ("scroll", 14, 18, 0, 300), ("screenshot",)]
     assert client.calls[1]["contents"][1]["role"] == "model"
     assert client.calls[1]["contents"][2]["parts"][0]["function_response"]["name"] == "scroll"
