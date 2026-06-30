@@ -4,7 +4,7 @@
 
 Harness Studio runs AI agents through browser-based UI challenges ("gyms"), captures everything they do — screenshots, action timelines, logs, and model conversations — and turns the results into replayable sessions, reports, and leaderboards. It ships as a small fleet of services you can stand up with a single `docker compose up`.
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8.svg?logo=go&logoColor=white)](api/go.mod)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](execution-api/pyproject.toml)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](frontend/package.json)
@@ -316,7 +316,7 @@ Provider calls remain stubbed until real API credentials and adapter implementat
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the quality gate (evidence before assertions — run the checks and read the output), and pull-request expectations. By contributing you agree to license your work under AGPL-3.0.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the quality gate (evidence before assertions — run the checks and read the output), and pull-request expectations. By contributing you agree to license your work under Apache-2.0.
 
 ## Security
 
@@ -324,8 +324,8 @@ Do not open public issues for security vulnerabilities. Never commit real API ke
 
 ## License
 
-Harness Studio is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0). See [LICENSE](LICENSE) for the full text.
+Harness Studio is licensed under the **Apache License 2.0** (Apache-2.0). See [LICENSE](LICENSE) for the full text.
 
-The AGPL's network clause (section 13) means that **if you run a modified version of Harness Studio as a network service, you must make the modified source code available to its users.** If this does not fit your needs, please reach out about alternative licensing.
+Apache-2.0 is a permissive license: you are free to use, modify, and distribute Harness Studio — including in closed-source and commercial products — provided you retain the copyright and license notices and state any changes you make. It also includes an express patent grant from contributors.
 
 © 2026 Harness Studio contributors.

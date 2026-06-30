@@ -47,7 +47,7 @@ export function Login() {
           {error ? <p data-id="login-error" className="harness-body-sm text-[var(--brand-error)]">{error}</p> : null}
           <Button data-id="login-submit" type="submit" className="w-full">Sign in</Button>
         </form>
-        <p className="harness-caption mt-5 text-center">Self-hosted &middot; AGPL-3.0</p>
+        <p className="harness-caption mt-5 text-center">Self-hosted &middot; Apache-2.0</p>
       </div>
     </main>
   )

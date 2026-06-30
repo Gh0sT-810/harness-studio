@@ -2,7 +2,7 @@
 
 Thanks for your interest in improving Harness Studio. This guide covers how to set up a dev environment, the quality bar we hold changes to, and how to get a pull request merged.
 
-By contributing, you agree that your contributions are licensed under the project's [AGPL-3.0 license](LICENSE).
+By contributing, you agree that your contributions are licensed under the project's [Apache-2.0 license](LICENSE).
 
 ## Ways to contribute
 
