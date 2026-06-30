@@ -164,3 +164,100 @@ def test_recover_expired_leases_marks_retryable_rows(monkeypatch):
         {"id": "iteration-1", "execution_id": "execution-1", "batch_id": "batch-1", "status": "retrying"},
         {"id": "iteration-2", "execution_id": "execution-2", "batch_id": "batch-1", "status": "crashed"},
     ]
+
+
+def test_recover_expired_leases_clears_celery_task_id(monkeypatch):
+    # REC-03: recovery must clear celery_task_id so list_dispatchable_iterations
+    # (which requires COALESCE(celery_task_id,'')='') can re-dispatch the row.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    PostgresIterationRepository().recover_expired_leases(max_attempts=2)
+
+    sql, _ = cursor.executed[0]
+    assert "celery_task_id = ''" in sql
+    assert "worker_id = ''" in sql
+
+
+def test_recovered_retrying_row_is_dispatchable(monkeypatch):
+    # REC-04: the dispatchable query selects pending/retrying rows with empty
+    # celery_task_id — the cleared row qualifies and is no longer stalled.
+    cursor = FakeCursor([("iteration-1", "execution-1", "batch-1")])
+    patch_connect(monkeypatch, cursor)
+
+    rows = PostgresIterationRepository().list_dispatchable_iterations("batch-1")
+
+    sql, params = cursor.executed[0]
+    assert "status IN ('pending', 'retrying')" in sql
+    assert "COALESCE(iterations.celery_task_id, '') = ''" in sql
+    assert params == ("batch-1",)
+    assert rows == [{"id": "iteration-1", "execution_id": "execution-1", "batch_id": "batch-1"}]
+
+
+def test_claim_returns_none_when_row_not_claimable(monkeypatch):
+    # CLM-04/05/07: the WHERE guard (status IN (pending,retrying) AND
+    # cancel_requested=false) excludes executing / cancel-requested / terminal
+    # rows, so a second worker's claim matches no row and returns None.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    result = PostgresIterationRepository().claim_iteration("iteration-1", "worker-2", lease_seconds=60)
+
+    sql, _ = cursor.executed[0]
+    assert "status IN ('pending', 'retrying')" in sql
+    assert "cancel_requested = false" in sql
+    assert result is None
+
+
+def test_heartbeat_returns_false_for_stale_or_reassigned_worker(monkeypatch):
+    # HB-02/03: heartbeat is scoped to the owning worker_id AND status=executing,
+    # so a delayed heartbeat from a dead replica cannot extend a reassigned
+    # iteration's lease — the core N>1 protection.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    refreshed = PostgresIterationRepository().heartbeat("iteration-1", "worker-1", lease_seconds=60)
+
+    sql, _ = cursor.executed[0]
+    assert "worker_id = %s" in sql
+    assert "status = 'executing'" in sql
+    assert refreshed is False
+
+
+def test_complete_iteration_returns_not_found_for_stale_worker(monkeypatch):
+    # CMP-02: complete is worker_id-scoped, so a zombie replica cannot clobber a
+    # row that recovery already reassigned to a new owner.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    completed = PostgresIterationRepository().complete_iteration(
+        "iteration-1", "worker-1", "passed", {}, {}, "", 0
+    )
+
+    sql, _ = cursor.executed[0]
+    assert "worker_id = %s" in sql
+    assert completed == {"id": "iteration-1", "status": "not_found"}
+
+
+def test_list_dispatchable_excludes_enqueued_and_cancelled(monkeypatch):
+    # DSP-02/03/04: the gate excludes already-enqueued (celery_task_id set) and
+    # cancel-requested rows so an in-flight/queued iteration is never re-dispatched.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    rows = PostgresIterationRepository().list_dispatchable_iterations("batch-1")
+
+    sql, _ = cursor.executed[0]
+    assert "COALESCE(iterations.celery_task_id, '') = ''" in sql
+    assert "COALESCE(iterations.cancel_requested, false) = false" in sql
+    assert rows == []
+
+
+def test_mark_cancelled_returns_not_found_for_unknown_iteration(monkeypatch):
+    # CXL-04: cancelling an unknown id returns not_found without raising.
+    cursor = FakeCursor([])
+    patch_connect(monkeypatch, cursor)
+
+    result = PostgresIterationRepository().mark_cancelled("missing")
+
+    assert result == {"id": "missing", "status": "not_found"}

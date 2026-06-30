@@ -371,6 +371,39 @@ export const modelApi = {
     }),
 }
 
+export type WorkerInfo = {
+  id: string
+  name: string
+  state: string
+  activity: string
+}
+
+export type WorkerStatus = {
+  desired: number | null
+  actual: number
+  total: number
+  flowerAvailable: boolean
+  workers: WorkerInfo[]
+}
+
+export const adminApi = {
+  getWorkers: () => request<WorkerStatus>('/api/admin/workers'),
+  scaleWorkers: (replicas: number) =>
+    request<Record<string, unknown>>('/api/admin/workers/scale', {
+      method: 'POST',
+      body: JSON.stringify({ replicas }),
+    }),
+  stopIdleWorkers: (count?: number) =>
+    request<Record<string, unknown>>('/api/admin/workers/stop-idle', {
+      method: 'POST',
+      body: JSON.stringify(count != null ? { count } : {}),
+    }),
+  restartWorker: (id: string) =>
+    request<Record<string, unknown>>(`/api/admin/workers/${encodeURIComponent(id)}/restart`, {
+      method: 'POST',
+    }),
+}
+
 export type BatchAnalytics = {
   total: number
   passed: number
@@ -429,4 +462,5 @@ export const api = {
   reports: reportApi,
   usage: usageApi,
   leaderboard: leaderboardApi,
+  admin: adminApi,
 }

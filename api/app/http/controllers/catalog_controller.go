@@ -248,6 +248,15 @@ func (cc *CatalogController) UpdateRuntimeConfig(c *gin.Context) {
 		utils.ErrorResponse(c, http.StatusBadRequest, "invalid runtime config")
 		return
 	}
+	// The authoritative bounded path for worker scaling is /admin/workers/scale, but
+	// guard the generic editor against a clearly-invalid workerReplicas value too.
+	if raw, ok := value["workerReplicas"]; ok {
+		n, isNumber := raw.(float64)
+		if !isNumber || n != float64(int(n)) || n < 0 {
+			utils.ErrorResponse(c, http.StatusBadRequest, "workerReplicas must be a non-negative integer")
+			return
+		}
+	}
 	config, err := cc.catalogService.SetSystemConfig(c.Request.Context(), "runtime", value)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, "update runtime config failed")

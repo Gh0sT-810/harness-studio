@@ -11,9 +11,12 @@ type ServiceContainer struct {
 	analyticsService services.AnalyticsServiceInterface
 	artifactProxy    services.ArtifactProxyInterface
 	reportProxy      services.ReportProxyInterface
+	workerProxy      services.WorkerProxyInterface
+	workerMin        int
+	workerMax        int
 }
 
-func NewContainer(postgres services.DependencyPinger, redis services.DependencyPinger, auth services.AuthServiceInterface, catalog services.CatalogServiceInterface, execution services.ExecutionServiceInterface, event services.EventServiceInterface, analytics services.AnalyticsServiceInterface, artifact services.ArtifactProxyInterface, report services.ReportProxyInterface) *ServiceContainer {
+func NewContainer(postgres services.DependencyPinger, redis services.DependencyPinger, auth services.AuthServiceInterface, catalog services.CatalogServiceInterface, execution services.ExecutionServiceInterface, event services.EventServiceInterface, analytics services.AnalyticsServiceInterface, artifact services.ArtifactProxyInterface, report services.ReportProxyInterface, worker services.WorkerProxyInterface, workerMin int, workerMax int) *ServiceContainer {
 	return &ServiceContainer{
 		healthService:    services.NewHealthService(postgres, redis),
 		authService:      auth,
@@ -23,6 +26,9 @@ func NewContainer(postgres services.DependencyPinger, redis services.DependencyP
 		analyticsService: analytics,
 		artifactProxy:    artifact,
 		reportProxy:      report,
+		workerProxy:      worker,
+		workerMin:        workerMin,
+		workerMax:        workerMax,
 	}
 }
 
@@ -56,4 +62,16 @@ func (c *ServiceContainer) GetArtifactProxy() services.ArtifactProxyInterface {
 
 func (c *ServiceContainer) GetReportProxy() services.ReportProxyInterface {
 	return c.reportProxy
+}
+
+func (c *ServiceContainer) GetWorkerProxy() services.WorkerProxyInterface {
+	return c.workerProxy
+}
+
+func (c *ServiceContainer) GetWorkerMinReplicas() int {
+	return c.workerMin
+}
+
+func (c *ServiceContainer) GetWorkerMaxReplicas() int {
+	return c.workerMax
 }

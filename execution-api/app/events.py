@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 import json
+from threading import Lock
 from uuid import uuid4
 
 from app.settings import get_settings
@@ -9,17 +10,33 @@ def stream_key(batch_id: str) -> str:
     return f"batch:{batch_id}:events"
 
 
+_client = None
+_client_lock = Lock()
+
+
+def _get_client():
+    """Reuse a single module-level Redis client across publishes.
+
+    redis-py clients are connection-pool-backed and thread-safe, so one shared
+    client serves all N concurrent worker replicas without rebuilding a client
+    (and leaking sockets) on every event publish.
+    """
+    global _client
+    if _client is None:
+        with _client_lock:
+            if _client is None:
+                from redis import Redis
+
+                _client = Redis.from_url(get_settings().redis_url)
+    return _client
+
+
 class RedisEventPublisher:
     def publish_batch_event(self, event_type: str, batch_id: str, payload: dict) -> str:
-        from redis import Redis
-
         envelope = self._envelope(event_type, batch_id, payload)
-        client = Redis.from_url(get_settings().redis_url)
-        return client.xadd(stream_key(batch_id), self._redis_fields(envelope))
+        return _get_client().xadd(stream_key(batch_id), self._redis_fields(envelope))
 
     def publish_iteration_event(self, event_type: str, iteration: dict, payload: dict) -> str:
-        from redis import Redis
-
         batch_id = iteration["batch_id"]
         envelope = self._envelope(
             event_type,
@@ -28,8 +45,7 @@ class RedisEventPublisher:
             execution_id=iteration.get("execution_id", ""),
             iteration_id=iteration["id"],
         )
-        client = Redis.from_url(get_settings().redis_url)
-        return client.xadd(stream_key(batch_id), self._redis_fields(envelope))
+        return _get_client().xadd(stream_key(batch_id), self._redis_fields(envelope))
 
     def _envelope(
         self,

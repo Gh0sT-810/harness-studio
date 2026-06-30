@@ -1,6 +1,23 @@
 from functools import lru_cache
+import socket
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _default_worker_id() -> str:
+    """Per-replica worker id derived from the container hostname.
+
+    Under the replica scaling model every ``worker-execution`` container must
+    have a distinct ``worker_id`` so heartbeat/complete (which filter on
+    ``worker_id``) target the right owner and a stale replica cannot extend a
+    reassigned iteration's lease. An explicit ``WORKER_ID`` env still overrides.
+    """
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = ""
+    return f"execution-api@{hostname}" if hostname else "execution-api"
 
 
 class Settings(BaseSettings):
@@ -10,7 +27,12 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
     execution_queue: str = "execution"
     maintenance_queue: str = "maintenance"
-    worker_id: str = "execution-api"
+    worker_id: str = Field(default_factory=_default_worker_id)
+    worker_prefetch_multiplier: int = 1
+    worker_send_task_events: bool = True
+    visibility_timeout_seconds: int = 9000
+    db_pool_min_size: int = 1
+    db_pool_max_size: int = 10
     lease_seconds: int = 60
     heartbeat_seconds: int = 5
     maintenance_interval_seconds: int = 30

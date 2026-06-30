@@ -30,6 +30,10 @@ func LoadConfig() (*models.Config, error) {
 		ArtifactServiceTTL:     envInt("ARTIFACT_SERVICE_TIMEOUT_SECONDS", 10),
 		ReportServiceBaseURL:   env("REPORT_SERVICE_BASE_URL", "http://localhost:8092"),
 		ReportServiceTTL:       envInt("REPORT_SERVICE_TIMEOUT_SECONDS", 30),
+		WorkerScalerBaseURL:    env("WORKER_SCALER_BASE_URL", "http://localhost:8093"),
+		WorkerScalerTTL:        envInt("WORKER_SCALER_TIMEOUT_SECONDS", 15),
+		WorkerMinReplicas:      envInt("WORKER_EXECUTION_MIN_REPLICAS", 0),
+		WorkerMaxReplicas:      envInt("WORKER_EXECUTION_MAX_REPLICAS", 200),
 	}, nil
 }
 

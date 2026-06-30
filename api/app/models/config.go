@@ -17,4 +17,8 @@ type Config struct {
 	ArtifactServiceTTL     int
 	ReportServiceBaseURL   string
 	ReportServiceTTL       int
+	WorkerScalerBaseURL    string
+	WorkerScalerTTL        int
+	WorkerMinReplicas      int
+	WorkerMaxReplicas      int
 }
