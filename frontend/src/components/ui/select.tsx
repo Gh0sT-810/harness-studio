@@ -10,6 +10,7 @@ type SelectOption = {
 }
 
 type SelectProps = {
+  ariaLabel?: string
   className?: string
   contentClassName?: string
   dataId: string
@@ -21,6 +22,7 @@ type SelectProps = {
 }
 
 export function Select({
+  ariaLabel,
   className,
   contentClassName,
   dataId,
@@ -37,6 +39,7 @@ export function Select({
           'flex h-10 w-full items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--hairline)] bg-[var(--canvas)] px-4 py-2 text-left text-base leading-normal text-[var(--ink)] outline-none transition-colors focus:ring-2 focus:ring-[var(--brand-green)] disabled:cursor-not-allowed disabled:bg-[var(--surface)] disabled:text-[var(--muted)]',
           className,
         )}
+        aria-label={ariaLabel}
         data-id={dataId}
       >
         <SelectPrimitive.Value placeholder={placeholder} />

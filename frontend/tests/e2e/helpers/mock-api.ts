@@ -41,6 +41,63 @@ const fullPageCapture = {
   cursor: { coordinateBasis: 'viewport' },
 }
 
+/**
+ * Replaces window.EventSource with a controllable mock and exposes
+ * window.__emitBatchEvent(type, data, lastEventId) so tests can push batch SSE
+ * events (the same channel the app uses for live updates). Must run before the
+ * page navigates.
+ */
+export async function installMockEventSource(page: Page) {
+  await page.addInitScript(() => {
+    type EventListenerMap = Record<string, Array<(event: MessageEvent<string>) => void>>
+
+    class MockEventSource {
+      static instances: MockEventSource[] = []
+      readonly url: string
+      onopen: ((event: Event) => void) | null = null
+      onerror: ((event: Event) => void) | null = null
+      onmessage: ((event: MessageEvent<string>) => void) | null = null
+      private readonly listeners: EventListenerMap = {}
+
+      constructor(url: string) {
+        this.url = url
+        MockEventSource.instances.push(this)
+        queueMicrotask(() => this.onopen?.(new Event('open')))
+      }
+
+      addEventListener(type: string, listener: (event: MessageEvent<string>) => void) {
+        this.listeners[type] = [...(this.listeners[type] ?? []), listener]
+      }
+
+      removeEventListener(type: string, listener: (event: MessageEvent<string>) => void) {
+        this.listeners[type] = (this.listeners[type] ?? []).filter((item) => item !== listener)
+      }
+
+      close() {}
+
+      emit(type: string, data: unknown, lastEventId: string) {
+        const message = new MessageEvent(type, { data: JSON.stringify(data), lastEventId })
+        for (const listener of this.listeners[type] ?? []) {
+          listener(message)
+        }
+        if (type === 'message') {
+          this.onmessage?.(message)
+        }
+      }
+    }
+
+    window.EventSource = MockEventSource as unknown as typeof EventSource
+    ;(window as unknown as { __emitBatchEvent: (type: string, data: unknown, lastEventId: string) => void }).__emitBatchEvent = (
+      type,
+      data,
+      lastEventId,
+    ) => {
+      const source = MockEventSource.instances[MockEventSource.instances.length - 1]
+      source?.emit(type, data, lastEventId)
+    }
+  })
+}
+
 export async function seedAuthenticatedState(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('auth_token', 'test-token')
@@ -240,6 +297,7 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
             action: 'click',
             args: { x: 640, y: 360 },
             message: 'openai click',
+            reasoning: 'I will click the Add to cart button to start checkout.',
             url: 'https://example.com/done',
             title: 'Demo Gym Done',
             beforeArtifactId: 'before-2',
@@ -255,6 +313,7 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
             action: 'keypress',
             args: { keys: ['ctrl', 'a'] },
             message: 'openai keypress',
+            reasoning: 'Selecting all text in the promo field before typing.',
             url: 'https://example.com/done',
             title: 'Demo Gym Done',
             beforeArtifactId: 'before-3',
@@ -303,7 +362,19 @@ export async function mockPhase2Api(page: Page, options: MockPhase2Options = {})
       await route.fulfill({ body: tallScreenshot, contentType: 'image/svg+xml' })
     })
   }
+  await page.route('**/api/artifacts/timeline-1', async (route) => {
+    await route.fulfill({ body: JSON.stringify({ version: 'v1', iterationId: 'i1', steps: [] }), contentType: 'application/json' })
+  })
   await page.route('**/api/artifacts/log-1', async (route) => {
-    await route.fulfill({ body: 'log captured', contentType: 'text/plain' })
+    await route.fulfill({
+      body: [
+        '2026-01-01T00:00:00Z INFO starting iteration i1',
+        '2026-01-01T00:00:01Z DEBUG navigating to https://example.com',
+        '2026-01-01T00:00:02Z WARN element settle took 240ms',
+        '2026-01-01T00:00:03Z ERROR verification failed: missing Order #',
+        'plain trailing line without a level',
+      ].join('\n'),
+      contentType: 'text/plain',
+    })
   })
 }

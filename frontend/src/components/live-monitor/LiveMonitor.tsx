@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { BrowserReplay } from '@/components/live-monitor/BrowserReplay'
-import { FileBrowser } from '@/components/live-monitor/FileBrowser'
+import { LiveSidePanel } from '@/components/live-monitor/LiveSidePanel'
 import { TimelinePane } from '@/components/live-monitor/TimelinePane'
 import { artifactApi } from '@/lib/artifacts'
 import { BatchSnapshot } from '@/lib/api'
@@ -72,6 +72,15 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
   const timelineError = timelineQuery.isError ? 'Timeline artifact is unavailable.' : ''
   const filesError = filesQuery.isError ? 'Artifact file list is unavailable.' : ''
 
+  // Selecting a step from any pane pins playback to it (stops following the
+  // live tail and pauses auto-advance), so the timeline, browser replay, and
+  // side panel all track the same step.
+  const selectStep = (index: number) => {
+    setSelectedIndex(index)
+    setFollowLive(false)
+    setIsPlaying(false)
+  }
+
   return (
     <div data-id="live-monitor" className="fixed inset-4 z-50 flex flex-col overflow-hidden rounded-2xl border border-[var(--hairline)] bg-[var(--canvas)] p-4 shadow-2xl">
       <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -92,11 +101,7 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
           selectedIndex={effectiveSelectedIndex}
           isPlaying={isPlaying}
           speed={speed}
-          onSelect={(index) => {
-            setSelectedIndex(index)
-            setFollowLive(false)
-            setIsPlaying(false)
-          }}
+          onSelect={selectStep}
           onPrevious={() => setSelectedIndex((current) => Math.max(current - 1, 0))}
           onNext={() => setSelectedIndex((current) => Math.min(current + 1, Math.max(steps.length - 1, 0)))}
           onTogglePlay={() => setIsPlaying((current) => !current)}
@@ -106,7 +111,7 @@ export function LiveMonitor({ iteration, onClose }: { iteration: Iteration; onCl
           onContinueLive={() => setFollowLive(true)}
         />
         <BrowserReplay steps={steps} selectedIndex={effectiveSelectedIndex} isLiveFollowing={isLive && followLive} />
-        <FileBrowser files={files} />
+        <LiveSidePanel files={files} steps={steps} selectedIndex={effectiveSelectedIndex} onSelect={selectStep} />
       </div>
     </div>
   )

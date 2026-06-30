@@ -46,6 +46,11 @@ export type TimelineStep = {
   afterArtifactId?: string
   capture?: CaptureMetadata
   captureAfter?: CaptureMetadata
+  // Optional model narrative, populated by the execution-api adapters
+  // (model_thinking → reasoning, final model_response → response). Read
+  // defensively: pre-parity timelines omit these.
+  reasoning?: string
+  response?: string
 }
 
 export type TimelineDocument = {
@@ -56,6 +61,9 @@ export type TimelineDocument = {
 
 export async function authedFetch(path: string) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    // Living artifacts (timeline, execution log) are upserted in place during a
+    // run, so never serve a stale cached copy when polling for live updates.
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${tokenStore.getAccessToken()}` },
   })
   if (!response.ok) {
@@ -113,4 +121,32 @@ export const artifactApi = {
     const response = await authedFetch(`/api/artifacts/${artifactId}`)
     return URL.createObjectURL(await response.blob())
   },
+  text: async (artifactId: string) => {
+    const response = await authedFetch(`/api/artifacts/${artifactId}`)
+    return response.text()
+  },
+}
+
+/**
+ * Opens an artifact in a new tab without tripping popup blockers or leaking the
+ * blob URL. The tab is opened synchronously inside the click handler (so it
+ * keeps the user-gesture context), then redirected to the fetched blob once it
+ * resolves, and the object URL is revoked after the tab has loaded it.
+ */
+export function openArtifactInNewTab(artifactId: string) {
+  const tab = window.open('', '_blank')
+  if (tab) tab.opener = null
+  void artifactApi
+    .objectUrl(artifactId)
+    .then((url) => {
+      if (tab) {
+        tab.location.href = url
+      } else {
+        // Popup was blocked despite the synchronous open; best-effort fallback.
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
+      // Give the new tab time to load the blob before reclaiming it.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    })
+    .catch(() => tab?.close())
 }

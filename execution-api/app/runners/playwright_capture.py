@@ -42,8 +42,15 @@ class PlaywrightCaptureRunner:
         artifacts: list[dict] = []
         timeline_steps: list[dict] = []
         timeline_state: dict[str, Any] = {"artifact": None}
+        log_state: dict[str, Any] = {"artifact": None}
         persisted_entries: set[int] = set()
         step_counter = {"next_index": 2}
+        log_lines: list[str] = []
+
+        def log_event(level: str, message: str) -> None:
+            # One structured line per event: "<ISO ts> <LEVEL> <message>", which
+            # the frontend log parser splits into timestamp/level/message.
+            log_lines.append(f"{_now()} {level} {message}")
 
         def notify_artifact(artifact: dict) -> None:
             if observer is not None and hasattr(observer, "on_artifact"):
@@ -76,6 +83,21 @@ class PlaywrightCaptureRunner:
                 notify_artifact(artifact)
             else:
                 timeline_state["artifact"] = artifact
+            return artifact
+
+        def save_log() -> dict:
+            # Upsert the execution log in place (stable artifact id) so a running
+            # iteration's log accumulates live, mirroring save_timeline. Announced
+            # to the observer once, on its first write.
+            content = ("\n".join(log_lines) + "\n").encode() if log_lines else b""
+            metadata = {**base_metadata, "filename": "execution.log", "lineCount": len(log_lines)}
+            artifact = self.artifact_client.save_bytes(scope, "log", "execution.log", content, metadata, "text/plain", upsert=True)
+            if log_state["artifact"] is None:
+                artifacts.append(artifact)
+                log_state["artifact"] = artifact
+                notify_artifact(artifact)
+            else:
+                log_state["artifact"] = artifact
             return artifact
 
         def persist_adapter_entry(entry: dict) -> None:
@@ -130,11 +152,24 @@ class PlaywrightCaptureRunner:
                 "occurredAt": _now(),
                 **step_entry,
             }
+            args = step_entry.get("args")
+            log_event("INFO", f"action {index}: {step['message']}" + (f" args={json.dumps(args)}" if args else ""))
+            if step.get("reasoning"):
+                log_event("DEBUG", f"action {index} reasoning: {step['reasoning']}")
+            if step.get("url"):
+                log_event("DEBUG", f"action {index} url: {step['url']}")
+            if before_action:
+                log_event("DEBUG", f"action {index} before-screenshot {step_entry.get('beforeArtifactId', '')}")
+            if after_action:
+                log_event("DEBUG", f"action {index} after-screenshot {step_entry.get('afterArtifactId', '')}")
             timeline_steps.append(step)
             save_timeline()
             notify_step(step)
+            # Flush the log per action so it streams live alongside the timeline.
+            save_log()
 
         initial_capture: dict[str, Any] = {"before": {}}
+        log_event("INFO", f"iteration {iteration['id']} started on {iteration.get('gym_base_url', 'about:blank')}")
         playwright = self._playwright()
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -171,6 +206,7 @@ class PlaywrightCaptureRunner:
             timeline_steps.append(navigate_step)
             save_timeline()
             notify_step(navigate_step)
+            log_event("INFO", f"navigated to {iteration.get('gym_base_url', '')} (title={title!r})")
             prompt = iteration.get("snapshot_prompt", "")
             adapter = iteration.get("model_adapter")
             browser_state = {"url": page.url, "title": title, "computer": computer, "on_step": persist_adapter_entry}
@@ -190,6 +226,11 @@ class PlaywrightCaptureRunner:
             # Persist any entries the adapter did not stream through on_step.
             for entry in adapter_timeline:
                 persist_adapter_entry(entry)
+            log_event("INFO", f"model run produced {len(timeline_steps) - 1} action step(s)")
+            if token_usage:
+                log_event("INFO", f"tokens: {token_usage.get('input_tokens', 0)} in / {token_usage.get('output_tokens', 0)} out")
+            if model_response:
+                log_event("DEBUG", f"model response: {model_response[:200]}")
             after_capture = computer.get_capture_metadata(full_page=False)
             after = page.screenshot(full_page=False)
             browser_state = {"url": page.url, "title": title, "adapter": adapter_metadata}
@@ -201,6 +242,10 @@ class PlaywrightCaptureRunner:
                 stop()
 
         verification = VerificationEngine().verify(iteration, model_response, browser_state)
+        log_event(
+            "INFO" if verification.status == "passed" else "WARN",
+            f"verification {verification.status}: {verification.comments or 'no comments'}",
+        )
 
         after_artifact = save_artifact(
             "screenshot",
@@ -223,11 +268,17 @@ class PlaywrightCaptureRunner:
             "captureAfter": after_capture,
             "occurredAt": _now(),
         }
+        # Surface the model's final answer on the terminal step so the timeline
+        # UI can show it (the conversation/task_response artifacts keep the
+        # canonical copy).
+        if model_response:
+            final_step["response"] = model_response
         step_counter["next_index"] += 1
         timeline_steps.append(final_step)
         timeline_artifact = save_timeline()
         notify_step(final_step)
-        save_artifact("log", "execution.log", b"Playwright capture completed\n", {"filename": "execution.log"}, "text/plain")
+        log_event("INFO", "playwright capture completed")
+        save_log()
         save_artifact(
             "conversation",
             "conversation.json",

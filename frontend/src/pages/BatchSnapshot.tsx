@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { LiveMonitor } from '@/components/live-monitor/LiveMonitor'
+import { LogsViewer } from '@/components/logs/LogsViewer'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ export function BatchSnapshotPage() {
   const queryClient = useQueryClient()
   const [liveState, setLiveState] = useState<LiveBatchState | null>(null)
   const [monitorIterationId, setMonitorIterationId] = useState('')
+  const [logsIterationId, setLogsIterationId] = useState('')
   const [filter, setFilter] = useState<IterationFilter>('all')
   const snapshotQuery = useQuery({
     queryKey: ['batch-snapshot', id],
@@ -72,6 +74,7 @@ export function BatchSnapshotPage() {
   const snapshot = liveState ?? (snapshotData ? createLiveBatchState(snapshotData) : null)
   const connectionStatus = connectionState === 'live' ? 'connected' : connectionState
   const monitorIteration = snapshot?.iterations.find((iteration) => iteration.id === monitorIterationId)
+  const logsIteration = snapshot?.iterations.find((iteration) => iteration.id === logsIterationId)
   const executionsById = useMemo(
     () => new Map(snapshot?.executions.map((execution) => [execution.id, execution]) ?? []),
     [snapshot],
@@ -212,13 +215,24 @@ export function BatchSnapshotPage() {
                       <td className="text-right font-mono text-[var(--steel)]">{iteration.totalSteps ? iteration.totalSteps : '—'}</td>
                       <td className="text-right font-mono text-[var(--steel)]">{queued ? '—' : `$${(iteration.cost ?? 0).toFixed(2)}`}</td>
                       <td className="text-right">
-                        {queued ? (
-                          <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary opacity-45" disabled>Queued</button>
-                        ) : (
-                          <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary" onClick={() => setMonitorIterationId(iteration.id)}>
-                            {RUNNING_STATUSES.has(iteration.status) ? 'Live Monitor' : 'View'}
+                        <div className="flex items-center justify-end gap-2">
+                          {queued ? (
+                            <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary opacity-45" disabled>Queued</button>
+                          ) : (
+                            <button data-id={`open-live-monitor-${iteration.id}`} type="button" className="harness-button-secondary" onClick={() => setMonitorIterationId(iteration.id)}>
+                              {RUNNING_STATUSES.has(iteration.status) ? 'Live Monitor' : 'View'}
+                            </button>
+                          )}
+                          <button
+                            data-id={`open-logs-${iteration.id}`}
+                            type="button"
+                            className={`harness-button-secondary ${queued ? 'opacity-45' : ''}`}
+                            disabled={queued}
+                            onClick={() => setLogsIterationId(iteration.id)}
+                          >
+                            Logs
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -283,6 +297,7 @@ export function BatchSnapshotPage() {
         </aside>
       </section>
       {monitorIteration ? <LiveMonitor iteration={monitorIteration} onClose={() => setMonitorIterationId('')} /> : null}
+      {logsIteration ? <LogsViewer iteration={logsIteration} onClose={() => setLogsIterationId('')} /> : null}
     </div>
   )
 }
