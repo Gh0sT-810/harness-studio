@@ -187,7 +187,8 @@ test.describe('Live Monitor', () => {
       800,
     )
 
-    // Action overlays are toggleable; the ditto cursor is not an overlay.
+    // Action overlays are toggleable; a click before-frame has the action ring,
+    // but no tracked cursor until the after-frame records where it landed.
     await page.locator('[data-id="live-monitor-step-1"]').click()
     await page.locator('[data-id="live-monitor-before"]').click()
     await expect(page.locator('[data-id="live-monitor-coordinate-overlay"]')).toBeVisible()
@@ -195,7 +196,7 @@ test.describe('Live Monitor', () => {
     await expect(page.locator('[data-id="live-monitor-cursor-icon"]')).toHaveCount(0)
     await page.locator('[data-id="live-monitor-overlay-toggle"]').click()
     await expect(page.locator('[data-id="live-monitor-coordinate-overlay"]')).toHaveCount(0)
-    await expect(mouseCursor).toBeVisible()
+    await expect(mouseCursor).toHaveCount(0)
     await page.locator('[data-id="live-monitor-overlay-toggle"]').click()
     await expect(page.locator('[data-id="live-monitor-coordinate-overlay"]')).toBeVisible()
   })

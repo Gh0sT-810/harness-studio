@@ -148,7 +148,7 @@ export function BrowserReplay({
 
   return (
     <section data-id="live-monitor-browser" className="harness-card-base grid h-full max-h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden">
-      <div data-id="live-monitor-browser-chrome" className="border-b border-[var(--hairline)] bg-[var(--surface-soft)] p-3">
+      <div data-id="live-monitor-browser-chrome" className="row-start-1 border-b border-[var(--hairline)] bg-[var(--surface-soft)] p-3">
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-full bg-[var(--brand-error)]" />
           <span className="h-3 w-3 rounded-full bg-[var(--brand-warn)]" />
@@ -170,7 +170,7 @@ export function BrowserReplay({
         <p className="harness-subtitle mt-2 truncate text-xs">{step?.title ?? step?.message ?? 'No title captured yet'}</p>
       </div>
       {hasBeforeAfter ? (
-        <div data-id="live-monitor-before-after-toggle" className="flex items-center justify-between gap-2 border-b border-[var(--hairline)] p-3">
+        <div data-id="live-monitor-before-after-toggle" className="row-start-2 flex items-center justify-between gap-2 border-b border-[var(--hairline)] p-3">
           <p className="harness-kicker">{effectiveMode === 'before' ? 'What will be performed' : 'What was performed'}</p>
           <div className="flex gap-2">
           <button data-id="live-monitor-before" className={selectedMode === 'before' ? 'harness-button-primary' : 'harness-button-secondary'} type="button" onClick={() => setSelection({ stepId: step?.id, mode: 'before' })}>Before</button>
@@ -181,7 +181,7 @@ export function BrowserReplay({
       <div
         ref={containerRef}
         data-id="live-monitor-screenshot-canvas"
-        className="relative flex h-full min-h-0 items-center justify-center overflow-hidden bg-[var(--surface-soft)] p-3"
+        className="relative row-start-3 flex h-full min-h-0 items-center justify-center overflow-hidden bg-[var(--surface-soft)] p-3"
       >
         {frame.isInitialLoading ? (
           <div className="absolute inset-0 flex items-center justify-center p-3">
@@ -310,7 +310,7 @@ export function BrowserReplay({
           </div>
         ) : null}
       </div>
-      <div data-id="live-monitor-action-footer" className="grid gap-2 border-t border-[var(--hairline)] bg-[var(--canvas)] p-3">
+      <div data-id="live-monitor-action-footer" className="row-start-4 grid gap-2 border-t border-[var(--hairline)] bg-[var(--canvas)] p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">{step?.action ?? step?.type ?? 'No action selected'}</p>
