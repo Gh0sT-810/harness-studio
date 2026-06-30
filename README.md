@@ -40,7 +40,8 @@ It is built for ML and evaluation engineers, agent developers, and teams who nee
 ## Features
 
 - **Gym and task catalog** — Organize evaluation tasks into gyms, with metadata, auth/RBAC, and a catalog importer for bulk loading.
-- **Batch execution pipeline** — Create a batch and the system fans it out into per-task iterations, dispatched through Celery to isolated workers (`concurrency=1`, one task per child) with lease-based recovery for crashed runs.
+- **Batch execution pipeline** — Create a batch and the system fans it out into per-task iterations, dispatched through Celery to a pool of isolated `worker-execution` replicas (each `concurrency=1`, one task per child) so several iterations run in parallel, with lease-based recovery for crashed runs.
+- **Live worker scaling** — An admin **Workers** tab shows each worker's state and idle/busy activity and lets you scale the pool up or down (0 = fully off), stop idle workers, or restart a worker on demand — backed by an internal `worker-scaler` service that drives the Docker API through a least-privilege socket proxy, with Flower for live monitoring.
 - **Rich artifact capture** — Each iteration records screenshots, an `action_timeline.json`, logs, the full model conversation, task responses, and verification results via Playwright.
 - **Live Monitor** — Replay a run frame-by-frame from its captured timeline, streamed live over Server-Sent Events with no frontend polling.
 - **Reports and analytics** — Generate JSON, CSV, and Excel reports per batch, plus token/cost usage summaries, CSV export, and a model/gym leaderboard.
@@ -63,9 +64,12 @@ flowchart TB
         fe["frontend<br/>React + Vite"]
         api["api<br/>Go / Gin — public + control API"]
         exec["execution-api<br/>Python / FastAPI — dispatch + cancel"]
-        we["worker-execution<br/>Celery"]
+        we["worker-execution ×N<br/>Celery — 1 iteration each"]
         wm["worker-maintenance<br/>Celery"]
         ws["worker-scheduler<br/>Celery beat"]
+        scaler["worker-scaler<br/>scales the pool"]
+        proxy["docker-socket-proxy<br/>least-privilege Docker API"]
+        fl["flower<br/>worker monitoring"]
         art["artifact-service<br/>Python / FastAPI"]
         rep["report-service<br/>Python / FastAPI"]
         pg[("PostgreSQL<br/>source of truth")]
@@ -75,6 +79,7 @@ flowchart TB
     user --> ingress --> fe
     fe -->|REST + SSE| api
     api -->|dispatch| exec
+    api -->|scale / status| scaler
     api --> pg
     api -->|live events| rd
     api -->|proxy artifacts| art
@@ -83,6 +88,10 @@ flowchart TB
     we -->|claim iterations| rd
     wm -->|recover leases| rd
     ws -->|schedule| rd
+    scaler -->|container lifecycle| proxy
+    proxy -.->|start/stop/restart| we
+    scaler -->|idle detection| fl
+    fl -->|worker events| rd
     we -->|run agent| gym
     we -->|upload artifacts| art
     we --> pg
@@ -99,9 +108,12 @@ flowchart TB
 | `frontend` | React 19, TypeScript, Vite, Tailwind | UI; talks **only** to the Go API |
 | `api` | Go 1.26, Gin, pgx, JWT | Public + control APIs, health/readiness, auth/RBAC, proxies internal services |
 | `execution-api` | Python 3.11+, FastAPI, Celery | Task names, routing, dispatch, cancellation, worker contracts |
-| `worker-execution` | Celery | Claims and runs one iteration at a time; heartbeats its lease; emits live events |
+| `worker-execution` | Celery | Runs as **N replicas**, each claiming one iteration at a time (one process, one browser); heartbeats its lease; emits live events |
 | `worker-maintenance` | Celery | Recovers expired leases and re-enqueues retryable iterations |
 | `worker-scheduler` | Celery beat | Periodic maintenance scheduling |
+| `worker-scaler` | Python, FastAPI | Scales / starts / stops / restarts `worker-execution` containers via the Docker API; idle detection via Flower; internal-only, admin-RBAC'd through the Go API |
+| `docker-socket-proxy` | Tecnativa | Least-privilege gateway to the Docker socket (container endpoints only); the **only** holder of `/var/run/docker.sock` |
+| `flower` | Celery Flower | Live worker/task monitoring; its REST API is consumed by `worker-scaler` for idle/busy state |
 | `artifact-service` | Python, FastAPI | Owns artifact files on local disk + Postgres metadata; archive limits |
 | `report-service` | Python, FastAPI, openpyxl | Report job lifecycle, JSON/CSV/Excel generation, `report.ready` events |
 | `PostgreSQL` | — | Durable application truth |
@@ -164,6 +176,14 @@ All configuration is via environment variables; copy `.env.example` to `.env` an
 | `ARTIFACT_ROOT` | On-disk artifact directory | `/data/artifacts` |
 | `ARCHIVE_MAX_FILES` | Max files per batch archive | `1000` |
 | `LEASE_SECONDS` / `HEARTBEAT_SECONDS` / `MAX_ATTEMPTS` | Worker lease, heartbeat, retry budget | `60` / `5` / `2` |
+| `CUA_MAX_STEPS` | Max steps the VLM / computer-use agent may take per iteration (per-model override via the model's `config.maxSteps`) | `20` |
+| `WORKER_EXECUTION_REPLICAS` | Number of `worker-execution` containers = max iterations in parallel; each stays `concurrency=1` | `6` |
+| `WORKER_EXECUTION_MIN_REPLICAS` / `WORKER_EXECUTION_MAX_REPLICAS` | Admin scaling bounds (`0` = allow fully off) | `0` / `200` |
+| `WORKER_EXECUTION_MEMORY` | Per-replica memory limit | `1g` |
+| `WORKER_PREFETCH_MULTIPLIER` | Tasks each worker reserves (`1` spreads a backlog evenly across replicas) | `1` |
+| `VISIBILITY_TIMEOUT_SECONDS` | Redis re-delivery window; keep above the longest expected task | `9000` |
+| `DB_POOL_MIN_SIZE` / `DB_POOL_MAX_SIZE` | execution-api Postgres connection pool sizing | `1` / `10` |
+| `WORKER_SCALER_BASE_URL` / `FLOWER_BASE_URL` / `DOCKER_API_URL` | Internal scaler, Flower, and Docker-socket-proxy URLs | `http://worker-scaler:8093` / `http://flower:5555` / `http://docker-socket-proxy:2375` |
 | `DEFAULT_MODEL_ADAPTER_KEY` | Adapter used when none is specified | `text_only` |
 | `JWT_SECRET` | Auth signing secret — **change this** | `local-dev-secret-change-me` |
 | `CORS_ORIGIN` | Allowed frontend origins | `http://localhost:3000,...` |
@@ -177,6 +197,8 @@ All configuration is via environment variables; copy `.env.example` to `.env` an
 **Gyms and tasks.** A *gym* is a collection of *tasks* — individual browser challenges an agent must complete. You can create them in the UI or bulk-import a catalog with `scripts/import_turing_gyms.py`.
 
 **Batches and iterations.** A *batch* runs a selection of tasks against one or more models. The API creates durable `batches`, `executions`, and `iterations` rows, then asks `execution-api` to dispatch one Celery task per runnable iteration. Each iteration moves `pending → executing → passed/failed`, with the batch run page updating live over SSE.
+
+**Worker scaling.** Parallelism equals the number of `worker-execution` replicas — each runs exactly one iteration at a time (one process, one browser), so the running container count *is* the concurrency limit; surplus iterations wait in the Redis queue. Set the baseline with `WORKER_EXECUTION_REPLICAS`, or scale the live pool from the **Workers** admin tab (`/admin?tab=workers`): change the running count (`0` = off), stop idle workers, or restart a specific one. The tab reads each worker's idle/busy state from Flower; the internal `worker-scaler` performs container lifecycle actions through a least-privilege Docker socket proxy (admin-RBAC'd via the Go API). Crashed workers auto-restart via the container restart policy, and any interrupted iteration is recovered through lease expiry.
 
 **Artifacts.** Every iteration writes a scoped artifact tree through the internal `artifact-service`:
 
@@ -243,6 +265,15 @@ GET/PUT /api/admin/runtime-config
 GET/PUT /api/admin/embedding-config
 ```
 
+**Worker pool** (admin)
+
+```text
+GET  /api/admin/workers              # pool status: per-worker state + idle/busy, desired vs actual
+POST /api/admin/workers/scale        # set the running worker count (0 = off)
+POST /api/admin/workers/stop-idle    # stop idle workers (down to the floor)
+POST /api/admin/workers/{id}/restart # restart a specific worker
+```
+
 ## Project structure
 
 ```text
@@ -253,6 +284,7 @@ harness-studio/
 │   └── openapi/         # API specs
 ├── execution-api/       # Python FastAPI + Celery workers
 │   └── app/adapters/    # model adapters (base, cua, registry)
+├── worker-scaler/       # Python FastAPI — scales worker-execution via the Docker API
 ├── artifact-service/    # Python FastAPI artifact store
 ├── report-service/      # Python FastAPI report generation
 ├── frontend/            # React + TypeScript + Vite UI
