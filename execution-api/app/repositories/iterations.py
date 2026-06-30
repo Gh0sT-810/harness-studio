@@ -224,6 +224,7 @@ class PostgresIterationRepository:
                         failure_context = 'worker lease expired',
                         attempt = attempt + 1,
                         worker_id = '',
+                        celery_task_id = '',
                         heartbeat_at = NULL,
                         lease_expires_at = NULL
                     FROM execution.executions

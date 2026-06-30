@@ -14,6 +14,7 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	batchController := controllers.NewBatchController(serviceContainer.GetExecutionService(), serviceContainer.GetEventService())
 	artifactController := controllers.NewArtifactController(serviceContainer.GetArtifactProxy())
 	reportController := controllers.NewReportController(serviceContainer.GetReportProxy())
+	workerController := controllers.NewWorkerController(serviceContainer.GetWorkerProxy(), serviceContainer.GetCatalogService(), serviceContainer.GetWorkerMinReplicas(), serviceContainer.GetWorkerMaxReplicas())
 	tokenUsageController := controllers.NewTokenUsageController(serviceContainer.GetAnalyticsService())
 	leaderboardController := controllers.NewLeaderboardController(serviceContainer.GetAnalyticsService())
 
@@ -81,6 +82,10 @@ func SetupRoutes(router *gin.Engine, serviceContainer *container.ServiceContaine
 	admin.DELETE("/models/:id", catalogController.DeleteModelDefinition)
 	admin.GET("/admin/runtime-config", catalogController.GetRuntimeConfig)
 	admin.PUT("/admin/runtime-config", catalogController.UpdateRuntimeConfig)
+	admin.GET("/admin/workers", workerController.GetWorkerStatus)
+	admin.POST("/admin/workers/scale", workerController.Scale)
+	admin.POST("/admin/workers/stop-idle", workerController.StopIdle)
+	admin.POST("/admin/workers/:id/restart", workerController.RestartWorker)
 	admin.GET("/admin/embedding-config", catalogController.GetEmbeddingConfig)
 	admin.PUT("/admin/embedding-config", catalogController.UpdateEmbeddingConfig)
 }

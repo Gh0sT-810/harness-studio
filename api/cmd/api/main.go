@@ -72,10 +72,42 @@ func main() {
 	executionService := services.NewExecutionService(store, eventService, executionDispatcher)
 	artifactProxy := services.NewHTTPArtifactProxy(cfg.ArtifactServiceBaseURL, time.Duration(cfg.ArtifactServiceTTL)*time.Second)
 	reportProxy := services.NewHTTPReportProxy(cfg.ReportServiceBaseURL, time.Duration(cfg.ReportServiceTTL)*time.Second)
-	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService, analyticsService, artifactProxy, reportProxy)
+	workerProxy := services.NewHTTPWorkerProxy(cfg.WorkerScalerBaseURL, time.Duration(cfg.WorkerScalerTTL)*time.Second)
+	serviceContainer := container.NewContainer(pool, redisPinger{client: redisClient}, authService, catalogService, executionService, eventService, analyticsService, artifactProxy, reportProxy, workerProxy, cfg.WorkerMinReplicas, cfg.WorkerMaxReplicas)
 	routes.SetupRoutes(router, serviceContainer)
+
+	reconcileWorkerReplicas(context.Background(), catalogService, workerProxy, cfg.WorkerMinReplicas, cfg.WorkerMaxReplicas)
 
 	if err := router.Run(cfg.ServerAddress); err != nil {
 		log.Fatalf("failed to start API server: %v", err)
+	}
+}
+
+// reconcileWorkerReplicas re-applies the persisted desired worker count on boot so
+// the chosen scale survives a stack restart. Best-effort: any failure (no persisted
+// value, scaler down) is logged and never blocks startup.
+func reconcileWorkerReplicas(ctx context.Context, catalog services.CatalogServiceInterface, worker services.WorkerProxyInterface, minReplicas, maxReplicas int) {
+	cfg, err := catalog.GetSystemConfig(ctx, "runtime")
+	if err != nil {
+		return
+	}
+	raw, ok := cfg.Value["workerReplicas"]
+	if !ok {
+		return
+	}
+	desired, ok := raw.(float64)
+	if !ok {
+		log.Printf("worker reconcile skipped: workerReplicas is not a number")
+		return
+	}
+	replicas := int(desired)
+	if replicas < minReplicas {
+		replicas = minReplicas
+	}
+	if replicas > maxReplicas {
+		replicas = maxReplicas
+	}
+	if _, err := worker.Scale(ctx, replicas); err != nil {
+		log.Printf("worker reconcile to %d replicas failed (continuing): %v", replicas, err)
 	}
 }

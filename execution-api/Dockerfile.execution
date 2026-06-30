@@ -11,4 +11,4 @@ RUN python -m playwright install --with-deps chromium
 
 COPY app ./app
 
-CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--queues=execution", "--pool=prefork", "--concurrency=1", "--max-tasks-per-child=1"]
+CMD ["celery", "-A", "app.celery_app:celery_app", "worker", "--queues=execution", "--pool=prefork", "--concurrency=1", "--max-tasks-per-child=1", "-E"]

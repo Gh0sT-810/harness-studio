@@ -145,6 +145,10 @@ services:
       ARTIFACT_SERVICE_TIMEOUT_SECONDS: ${ARTIFACT_SERVICE_TIMEOUT_SECONDS:-10}
       REPORT_SERVICE_BASE_URL: ${REPORT_SERVICE_BASE_URL:-http://report-service:8092}
       REPORT_SERVICE_TIMEOUT_SECONDS: ${REPORT_SERVICE_TIMEOUT_SECONDS:-30}
+      WORKER_SCALER_BASE_URL: ${WORKER_SCALER_BASE_URL:-http://worker-scaler:8093}
+      WORKER_SCALER_TIMEOUT_SECONDS: ${WORKER_SCALER_TIMEOUT_SECONDS:-15}
+      WORKER_EXECUTION_MIN_REPLICAS: ${WORKER_EXECUTION_MIN_REPLICAS:-0}
+      WORKER_EXECUTION_MAX_REPLICAS: ${WORKER_EXECUTION_MAX_REPLICAS:-200}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -157,6 +161,8 @@ services:
       artifact-service:
         condition: service_healthy
       report-service:
+        condition: service_healthy
+      worker-scaler:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
@@ -172,7 +178,16 @@ services:
       context: ./execution-api
       dockerfile: Dockerfile.execution
     restart: unless-stopped
-    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--queues=execution", "--pool=prefork", "--concurrency=1", "--max-tasks-per-child=1"]
+    # Parallelism = replica count. Each replica stays --concurrency=1 --max-tasks-per-child=1
+    # (one isolated process + one fresh browser per iteration). -E emits task events for Flower.
+    deploy:
+      replicas: ${WORKER_EXECUTION_REPLICAS:-6}
+      resources:
+        limits:
+          memory: ${WORKER_EXECUTION_MEMORY:-1g}
+    labels:
+      com.harness.role: worker-execution
+    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--queues=execution", "--pool=prefork", "--concurrency=1", "--max-tasks-per-child=1", "-E"]
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://harness:harness_dev_password@postgres:5432/harness?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -180,7 +195,9 @@ services:
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       EXECUTION_QUEUE: ${EXECUTION_QUEUE:-execution}
       MAINTENANCE_QUEUE: ${MAINTENANCE_QUEUE:-maintenance}
-      WORKER_ID: worker-execution
+      # WORKER_ID intentionally unset: derived per-replica from the container hostname
+      # so every worker-execution replica gets a unique id (heartbeat/complete are
+      # worker_id-scoped; a shared id would let a stale replica touch another's lease).
       LEASE_SECONDS: ${LEASE_SECONDS:-60}
       HEARTBEAT_SECONDS: ${HEARTBEAT_SECONDS:-5}
       MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-30}
@@ -273,6 +290,83 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    networks:
+      - harness
+
+  # Least-privilege Docker API gateway: the raw socket is mounted ONLY here, and
+  # only the container endpoints the scaler needs are allowed (everything else 403s).
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1        # allow /containers/* (list, inspect, create, start, stop, restart, remove)
+      POST: 1              # allow write methods (POST/DELETE) on the allowed section
+      IMAGES: 0
+      NETWORKS: 0
+      VOLUMES: 0
+      EXEC: 0
+      SWARM: 0
+      SYSTEM: 0
+      INFO: 0
+      AUTH: 0
+      SERVICES: 0
+      TASKS: 0
+      SECRETS: 0
+      CONFIGS: 0
+      NODES: 0
+      PLUGINS: 0
+      BUILD: 0
+      COMMIT: 0
+      DISTRIBUTION: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - harness
+
+  # Internal-only service that scales/starts/stops/restarts worker-execution
+  # containers via the socket-proxy. Reached by the Go API (Phase 3); never public.
+  worker-scaler:
+    build:
+      context: ./worker-scaler
+    restart: unless-stopped
+    environment:
+      DOCKER_API_URL: ${DOCKER_API_URL:-http://docker-socket-proxy:2375}
+      FLOWER_BASE_URL: ${FLOWER_BASE_URL:-http://flower:5555}
+      FLOWER_URL_PREFIX: ${FLOWER_URL_PREFIX:-flower}
+      WORKER_LABEL_KEY: com.harness.role
+      WORKER_LABEL_VALUE: worker-execution
+      MIN_REPLICAS: ${WORKER_EXECUTION_MIN_REPLICAS:-0}
+      MAX_REPLICAS: ${WORKER_EXECUTION_MAX_REPLICAS:-200}
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/internal/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - harness
+
+  # Live worker monitoring; the scaler uses its REST API for idle detection.
+  flower:
+    image: mher/flower:2.0.1
+    restart: unless-stopped
+    environment:
+      # Flower 2.x requires this to serve its REST API without login. Safe here:
+      # flower is internal-only (no published port); the worker-scaler is the only caller.
+      FLOWER_UNAUTHENTICATED_API: "true"
+    command: ["celery", "--broker=${CELERY_BROKER_URL:-redis://redis:6379/1}", "flower", "--port=5555", "--url-prefix=flower"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5555/flower/healthcheck')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - harness
 

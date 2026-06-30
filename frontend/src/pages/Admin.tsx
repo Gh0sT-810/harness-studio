@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import { authApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { RuntimeConfig } from '@/pages/admin/RuntimeConfig'
+import { Workers } from '@/pages/admin/Workers'
 import { Models } from '@/pages/Models'
 
 const roles = ['admin', 'reviewer', 'trainer', 'auditor']
@@ -18,6 +19,7 @@ const tabs = [
   { id: 'domains', label: 'Domains' },
   { id: 'models', label: 'Model Registry' },
   { id: 'runtime', label: 'Runtime Config' },
+  { id: 'workers', label: 'Workers' },
 ] as const
 
 type AdminTab = (typeof tabs)[number]['id']
@@ -144,6 +146,7 @@ export function Admin() {
         </Card>
       ) : null}
       {activeTab === 'runtime' ? <RuntimeConfig /> : null}
+      {activeTab === 'workers' ? <Workers /> : null}
     </div>
   )
 }
